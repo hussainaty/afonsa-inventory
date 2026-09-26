@@ -218,6 +218,8 @@ export const product = inventory.table(
     organizationId: orgId(),
     categoryId: text("category_id").references(() => category.id, { onDelete: "set null" }),
     name: text("name").notNull(),
+    // Size or variant of the same part, e.g. "18 inch". Products sharing a name are sizes of one part.
+    variant: text("variant"),
     sku: text("sku"),
     barcode: text("barcode"),
     uom: text("uom").notNull().default("pcs"),
@@ -233,6 +235,11 @@ export const product = inventory.table(
   (t) => [
     index("product_org_idx").on(t.organizationId, t.active),
     index("product_category_idx").on(t.categoryId),
+    uniqueIndex("product_org_name_variant_uq").on(
+      t.organizationId,
+      sql`lower(${t.name})`,
+      sql`lower(coalesce(${t.variant}, ''))`,
+    ),
     uniqueIndex("product_org_sku_uq")
       .on(t.organizationId, sql`lower(${t.sku})`)
       .where(sql`${t.sku} is not null`),
@@ -240,6 +247,28 @@ export const product = inventory.table(
       .on(t.organizationId, t.barcode)
       .where(sql`${t.barcode} is not null`),
   ],
+);
+
+/** Photos of a product. Files live in object storage; this row holds the key and metadata. */
+export const productImage = inventory.table(
+  "product_image",
+  {
+    id: text("id").primaryKey(),
+    organizationId: orgId(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => product.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    // 0 = main photo shown in lists.
+    position: integer("position").notNull().default(0),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("product_image_product_idx").on(t.productId, t.position)],
 );
 
 /** On-hand quantity of a product in an internal location. Changed only by validated moves. */

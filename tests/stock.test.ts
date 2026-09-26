@@ -55,6 +55,7 @@ describe("stock engine", () => {
     const cat = await createCategory(db, ORG_A, { name: "Tools", parentId: null, color: "#112233", description: null });
     const p = await createProduct(db, ORG_A, USER, {
       name: "Hammer",
+      variant: null,
       categoryId: cat.id,
       sku: "HAM-1",
       barcode: null,
@@ -106,7 +107,7 @@ describe("stock engine", () => {
 
   it("transfers between sections and supports decimal quantities", async () => {
     const p = await createProduct(db, ORG_A, USER, {
-      name: "Rope", categoryId: null, sku: null, barcode: "1234567890123", uom: "m", cost: null, salePrice: null,
+      name: "Rope", variant: null, categoryId: null, sku: null, barcode: "1234567890123", uom: "m", cost: null, salePrice: null,
       description: null, initialQuantity: 7.5, initialLocationId: shelfA,
     });
     await transferStock(db, ORG_A, USER, { productId: p.id, fromLocationId: shelfA, toLocationId: shelfB, amount: 2.25, note: null });

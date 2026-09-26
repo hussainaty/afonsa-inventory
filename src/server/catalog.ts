@@ -1,4 +1,4 @@
-import { and, asc, eq, ilike, or, sql } from "drizzle-orm";
+import { aliasedTable, and, asc, eq, ilike, or, sql } from "drizzle-orm";
 import type { DB } from "@/db";
 import { category, location, product, stockMove, stockQuant } from "@/db/schema";
 import type { CategoryInput, NewProductInput, ProductInput } from "@/lib/validation";
@@ -108,7 +108,8 @@ async function assertCategory(db: DB, orgId: string, categoryId: string | null) 
 }
 
 function productConflict(err: unknown): never {
-  if (isUniqueViolation(err)) throw new AppError("Another product already uses that SKU or barcode");
+  if (isUniqueViolation(err))
+    throw new AppError("A product with the same name and size, SKU or barcode already exists");
   throw err;
 }
 
@@ -218,7 +219,9 @@ export async function listProducts(db: DB, orgId: string, f: ProductFilters = {}
   const q = f.q?.trim();
   if (q) {
     const pat = `%${escapeLike(q)}%`;
-    conds.push(or(ilike(product.name, pat), ilike(product.sku, pat), ilike(product.barcode, pat))!);
+    conds.push(
+      or(ilike(product.name, pat), ilike(product.variant, pat), ilike(product.sku, pat), ilike(product.barcode, pat))!,
+    );
   }
   if (f.categoryId === "none") conds.push(sql`${product.categoryId} is null`);
   else if (f.categoryId) {
@@ -238,6 +241,7 @@ export async function listProducts(db: DB, orgId: string, f: ProductFilters = {}
     .select({
       id: product.id,
       name: product.name,
+      variant: product.variant,
       sku: product.sku,
       barcode: product.barcode,
       uom: product.uom,
@@ -253,7 +257,7 @@ export async function listProducts(db: DB, orgId: string, f: ProductFilters = {}
     .from(product)
     .leftJoin(category, eq(category.id, product.categoryId))
     .where(and(...conds))
-    .orderBy(asc(product.name))
+    .orderBy(asc(product.name), asc(product.variant))
     .limit(1000);
 }
 
@@ -276,4 +280,22 @@ export async function findProductByCode(db: DB, orgId: string, code: string) {
     ),
     columns: { id: true },
   });
+}
+
+/** Other sizes/variants of the same part: products sharing the name. */
+export async function listSizes(db: DB, orgId: string, name: string) {
+  // Aliased on purpose: without a join Drizzle leaves columns unqualified, and the
+  // stock subquery's "id" would then bind to stock_quant instead of product.
+  const p = aliasedTable(product, "p");
+  return db
+    .select({
+      id: p.id,
+      variant: p.variant,
+      uom: p.uom,
+      active: p.active,
+      onHand: sql<number>`cast(coalesce((select sum(q.quantity) from inventory.stock_quant q where q.product_id = "p"."id"), 0) as float8)`,
+    })
+    .from(p)
+    .where(and(eq(p.organizationId, orgId), sql`lower(${p.name}) = lower(${name})`))
+    .orderBy(asc(p.variant));
 }

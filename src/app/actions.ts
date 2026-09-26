@@ -24,6 +24,8 @@ import {
   workspaceInput,
 } from "@/lib/validation";
 import * as catalog from "@/server/catalog";
+import * as images from "@/server/images";
+import { getStorage } from "@/server/storage";
 import { AppError } from "@/server/common";
 import { isMember, requireActionContext, requireManager } from "@/server/context";
 import * as locations from "@/server/locations";
@@ -151,12 +153,34 @@ export async function deleteProductAction(_: ActionState, form: FormData): Promi
   const state = await run(async () => {
     const ctx = await requireActionContext();
     requireManager(ctx);
-    await catalog.deleteProduct(db, ctx.org.id, idOf(form));
+    const productId = idOf(form);
+    const keys = await images.productImageKeys(db, ctx.org.id, productId);
+    await catalog.deleteProduct(db, ctx.org.id, productId);
+    const storage = getStorage();
+    await Promise.all(keys.map((k) => storage.delete(k).catch(() => {})));
     deleted = true;
     refreshApp();
   });
   if (deleted) redirect("/products");
   return state;
+}
+
+export async function deleteImageAction(_: ActionState, form: FormData): Promise<ActionState> {
+  return run(async () => {
+    const ctx = await requireActionContext();
+    await images.deleteProductImage(db, getStorage(), ctx.org.id, idOf(form));
+    refreshApp();
+    return "Photo deleted";
+  });
+}
+
+export async function makeMainImageAction(_: ActionState, form: FormData): Promise<ActionState> {
+  return run(async () => {
+    const ctx = await requireActionContext();
+    await images.makeMainImage(db, ctx.org.id, idOf(form));
+    refreshApp();
+    return "Main photo updated";
+  });
 }
 
 export async function findByCodeAction(code: string): Promise<string | null> {

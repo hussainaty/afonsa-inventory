@@ -1,4 +1,4 @@
-import { Boxes, Plus, Search } from "lucide-react";
+import { Boxes, ImageIcon, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BarcodeScanner } from "@/components/barcode-scanner";
@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { formatMoney } from "@/lib/format";
 import { listCategories, listProducts, type ProductFilters } from "@/server/catalog";
 import { requirePageContext } from "@/server/context";
+import { mainImageIds } from "@/server/images";
 import { listInternalLocations } from "@/server/locations";
 
 export const metadata: Metadata = { title: "Products" };
@@ -35,6 +36,7 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
     listCategories(db, ctx.org.id),
     listInternalLocations(db, ctx.org.id),
   ]);
+  const thumbs = await mainImageIds(db, ctx.org.id, products.map((p) => p.id));
   const filtered = Boolean(filters.q || filters.categoryId || filters.locationId || filters.stock || filters.archived);
 
   return (
@@ -134,9 +136,13 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
           <ul className="flex flex-col gap-2 md:hidden">
             {products.map((p) => (
               <li key={p.id}>
-                <Link href={`/products/${p.id}`} className="card flex items-center gap-3 p-4 active:bg-surface-2">
+                <Link href={`/products/${p.id}`} className="card flex items-center gap-3 p-3 active:bg-surface-2">
+                  <Thumb id={thumbs.get(p.id)} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{p.name}</p>
+                    <p className="truncate font-medium">
+                      {p.name}
+                      {p.variant ? <span className="text-accent"> · {p.variant}</span> : null}
+                    </p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <CategoryBadge name={p.categoryName} color={p.categoryColor} />
                       {p.sku ? <span className="font-mono text-xs text-muted">{p.sku}</span> : null}
@@ -167,8 +173,12 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
                 {products.map((p) => (
                   <tr key={p.id} className="hover:bg-surface-2">
                     <td>
-                      <Link href={`/products/${p.id}`} className="font-medium hover:text-accent">
-                        {p.name}
+                      <Link href={`/products/${p.id}`} className="flex items-center gap-3 font-medium hover:text-accent">
+                        <Thumb id={thumbs.get(p.id)} small />
+                        <span>
+                          {p.name}
+                          {p.variant ? <span className="block text-xs font-normal text-accent">{p.variant}</span> : null}
+                        </span>
                       </Link>
                     </td>
                     <td>
@@ -193,5 +203,19 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
         </Link>
       </p>
     </>
+  );
+}
+
+function Thumb({ id, small = false }: { id?: string; small?: boolean }) {
+  const size = small ? "size-10" : "size-14";
+  if (!id)
+    return (
+      <span className={`grid ${size} shrink-0 place-items-center rounded-xl bg-surface-2 text-muted`}>
+        <ImageIcon className="size-4" aria-hidden />
+      </span>
+    );
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- private, auth-gated image route
+    <img src={`/api/images/${id}`} alt="" loading="lazy" className={`${size} shrink-0 rounded-xl bg-surface-2 object-cover`} />
   );
 }

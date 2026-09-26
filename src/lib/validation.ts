@@ -51,6 +51,7 @@ export type CategoryInput = z.infer<typeof categoryInput>;
 
 export const productInput = z.object({
   name: requiredText("Name", 120),
+  variant: optionalText(60),
   categoryId: optionalText(64),
   sku: optionalText(64),
   barcode: optionalText(64),

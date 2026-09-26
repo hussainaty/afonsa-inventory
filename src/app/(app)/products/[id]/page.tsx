@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, ChevronLeft, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronLeft, Plus, Ruler, Trash2, X } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,10 +8,12 @@ import { ProductForm } from "@/components/forms/product-form";
 import { ReorderForm } from "@/components/forms/reorder-form";
 import { CategoryBadge, PageHeader } from "@/components/layout-bits";
 import { MoveList } from "@/components/move-list";
+import { ProductPhotos } from "@/components/product-photos";
 import { StockPanel } from "@/components/stock-panel";
 import { db } from "@/db";
 import { formatMoney, formatQty } from "@/lib/format";
-import { getProduct, listCategories } from "@/server/catalog";
+import { getProduct, listCategories, listSizes } from "@/server/catalog";
+import { listProductImages } from "@/server/images";
 import { canManage, requirePageContext } from "@/server/context";
 import { listInternalLocations } from "@/server/locations";
 import { listMoves, listReorderRules, productStockByLocation } from "@/server/reports";
@@ -19,7 +21,8 @@ import { listMoves, listReorderRules, productStockByLocation } from "@/server/re
 export async function generateMetadata({ params }: PageProps<"/products/[id]">): Promise<Metadata> {
   const ctx = await requirePageContext();
   const found = await getProduct(db, ctx.org.id, (await params).id);
-  return { title: found?.product.name ?? "Product" };
+  const p = found?.product;
+  return { title: p ? [p.name, p.variant].filter(Boolean).join(" · ") : "Product" };
 }
 
 export default async function ProductPage({ params, searchParams }: PageProps<"/products/[id]">) {
@@ -31,12 +34,14 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
   const { product } = found;
   const manager = canManage(ctx.role);
 
-  const [stock, locations, categories, rules, moves] = await Promise.all([
+  const [stock, locations, categories, rules, moves, photos, sizes] = await Promise.all([
     productStockByLocation(db, ctx.org.id, id),
     listInternalLocations(db, ctx.org.id),
     listCategories(db, ctx.org.id),
     listReorderRules(db, ctx.org.id, id),
     listMoves(db, ctx.org.id, { productId: id, limit: 50 }),
+    listProductImages(db, ctx.org.id, id),
+    listSizes(db, ctx.org.id, product.name),
   ]);
 
   return (
@@ -50,6 +55,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
         title={
           <span className="flex flex-wrap items-center gap-2">
             {product.name}
+            {product.variant ? <span className="badge bg-accent-soft text-sm text-accent">{product.variant}</span> : null}
             {!product.active ? <span className="badge bg-warning-soft text-warning">Archived</span> : null}
           </span>
         }
@@ -73,6 +79,41 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
       ) : null}
 
       <div className="flex flex-col gap-6">
+        <ProductPhotos productId={product.id} productName={product.name} images={photos} />
+
+        <section className="card overflow-hidden" aria-labelledby="sizes-heading">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+            <div>
+              <h2 id="sizes-heading" className="section-title">Sizes of this part</h2>
+              <p className="text-sm text-muted">Each size has its own stock, photos and codes.</p>
+            </div>
+            <Link href={`/products/new?from=${product.id}`} className="btn-secondary btn-sm">
+              <Plus className="size-4" aria-hidden /> Add another size
+            </Link>
+          </div>
+          <ul>
+            {sizes.map((v) => (
+              <li key={v.id} className="border-b border-border last:border-0">
+                <Link
+                  href={`/products/${v.id}`}
+                  aria-current={v.id === product.id ? "page" : undefined}
+                  className={`flex items-center gap-3 px-4 py-3 hover:bg-surface-2 ${v.id === product.id ? "bg-accent-soft/50" : ""}`}
+                >
+                  <Ruler className="size-4 shrink-0 text-muted" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {v.variant ?? "No size set"}
+                    {v.id === product.id ? <span className="text-muted"> (this one)</span> : null}
+                    {!v.active ? <span className="text-muted"> · archived</span> : null}
+                  </span>
+                  <span className="text-sm tabular-nums text-muted">
+                    {formatQty(v.onHand)} {v.uom}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
         {product.active ? (
           <StockPanel
             productId={product.id}

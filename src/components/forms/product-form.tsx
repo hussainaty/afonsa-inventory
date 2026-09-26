@@ -10,6 +10,7 @@ type Option = { id: string; label: string };
 type ProductValues = {
   id?: string;
   name?: string;
+  variant?: string | null;
   categoryId?: string | null;
   sku?: string | null;
   barcode?: string | null;
@@ -46,11 +47,20 @@ export function ProductForm({
 
       <section className="card grid gap-4 p-5 sm:grid-cols-2">
         <h2 className="section-title sm:col-span-2">Details</h2>
-        <div className="sm:col-span-2">
-          <Field label="Name" htmlFor={f("name")}>
-            <input id={f("name")} name="name" required maxLength={120} defaultValue={values.name} className="input" />
-          </Field>
-        </div>
+        <Field label="Name" htmlFor={f("name")} hint="Use the same name for every size of a part.">
+          <input id={f("name")} name="name" required maxLength={120} defaultValue={values.name} className="input" />
+        </Field>
+        <Field label="Size / variant" htmlFor={f("variant")} hint="Optional, e.g. 15 inch, 18 inch, Large.">
+          <input
+            id={f("variant")}
+            name="variant"
+            maxLength={60}
+            defaultValue={values.variant ?? ""}
+            placeholder="e.g. 18 inch"
+            className="input"
+            autoFocus={Boolean(values.name) && mode === "create"}
+          />
+        </Field>
         <Field label="Category" htmlFor={f("category")}>
           <select id={f("category")} name="categoryId" defaultValue={values.categoryId ?? ""} className="input">
             <option value="">Uncategorized</option>
