@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline · Afonsa Inventory</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f7f9; color: #121620; }
+      @media (prefers-color-scheme: dark) { body { background: #0c0f14; color: #e8ecf2; } }
+      main { max-width: 22rem; padding: 1.5rem; text-align: center; }
+      h1 { font-size: 1.25rem; margin: 0 0 .5rem; }
+      p { color: #5b6474; line-height: 1.5; }
+      button { margin-top: 1rem; min-height: 44px; padding: 0 1.25rem; border: 0; border-radius: .75rem; background: #0f766e; color: #fff; font-weight: 600; font-size: .95rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You're offline</h1>
+      <p>Stock numbers need a live connection so everyone sees the same counts. Reconnect and try again.</p>
+      <button onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>
