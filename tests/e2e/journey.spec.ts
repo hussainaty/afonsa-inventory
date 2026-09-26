@@ -11,7 +11,7 @@ async function signUp(page: Page, name: string, email: string, next?: string) {
 }
 
 function stockPanel(page: Page) {
-  return page.locator("section", { has: page.getByRole("heading", { name: "Stock by location" }) });
+  return page.locator("section", { has: page.getByRole("heading", { name: /^Stock by/ }) });
 }
 
 async function stockDialog(page: Page, action: "Add" | "Subtract" | "Move" | "Count") {
@@ -50,7 +50,7 @@ test("owner sets up inventory, moves stock and invites a teammate", async ({ pag
   // Product with opening stock in Shelf A.
   await page.goto("/products/new");
   await page.getByLabel("Name").fill("Cordless drill");
-  await page.getByLabel("Size / variant").fill("18 inch");
+  await page.getByLabel("Size").fill("18 inch");
   await page.getByLabel("Category").selectOption({ label: "Power tools" });
   await page.getByLabel("SKU / internal reference").fill(`DRL-${run}`);
   await page.getByLabel("Sale price").fill("129.90");
@@ -63,7 +63,7 @@ test("owner sets up inventory, moves stock and invites a teammate", async ({ pag
   // Photo upload (resized in the browser, stored, served back through the auth-gated route).
   const png = await page.screenshot({ clip: { x: 0, y: 0, width: 96, height: 72 } });
   await page.getByLabel("Choose photos").setInputFiles({ name: "drill.png", mimeType: "image/png", buffer: png });
-  const photo = page.getByRole("img", { name: "Cordless drill photo 1" });
+  const photo = page.getByRole("img", { name: "Cordless drill 18 inch photo 1" });
   await expect(photo).toBeVisible();
   await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
   await expect(page.getByText("Main photo")).toBeVisible();
@@ -98,28 +98,47 @@ test("owner sets up inventory, moves stock and invites a teammate", async ({ pag
   await dialog.getByRole("button", { name: "Move stock" }).click();
   await expect(dialog.getByText(/Moved 2 · INT\/\d{5}/)).toBeVisible();
   await expect(page.getByRole("dialog")).toBeHidden();
-  const rows = stockPanel(page).locator(":scope > ul > li");
+  const rows = stockPanel(page).locator("[data-size] li");
   await expect(rows).toHaveCount(2);
   await expect(rows.filter({ hasText: "WH/Stock/Shelf A" })).toContainText("10 pcs");
   await expect(rows.filter({ hasNotText: "Shelf A" })).toContainText("2 pcs");
   await expect(stockPanel(page).getByText("Total on hand: 12 pcs")).toBeVisible();
 
   // History records every move.
-  await expect(page.locator("section", { has: page.getByRole("heading", { name: "History" }) }).locator("li")).toHaveCount(4);
+  await expect(page.locator("section", { has: page.getByRole("heading", { name: /^History/ }) }).locator("li")).toHaveCount(4);
 
-  // Another size of the same part gets its own stock.
-  await page.getByRole("link", { name: "Add another size" }).click();
-  await expect(page.getByRole("heading", { name: "Add another size of Cordless drill" })).toBeVisible();
-  await page.getByLabel("Size / variant").fill("15 inch");
-  await page.getByLabel("Quantity").fill("4");
-  await page.getByRole("button", { name: "Create product" }).click();
-  await expect(stockPanel(page).getByText("Total on hand: 4 pcs")).toBeVisible();
-  const sizes = page.locator("section", { has: page.getByRole("heading", { name: "Sizes of this part" }) });
-  await expect(sizes.locator("ul > li")).toHaveCount(2);
-  await expect(sizes.getByRole("link", { name: /18 inch/ })).toContainText("12 pcs");
+  // Same item, new size: add stock and create the 15 inch size in one step from the Add dialog.
+  dialog = await stockDialog(page, "Add");
+  await dialog.getByLabel("Size", { exact: true }).selectOption({ label: "+ New size…" });
+  await dialog.getByLabel("New size").fill("15 inch");
+  await dialog.getByLabel("Location / section").selectOption({ label: "WH/Stock/Shelf A" });
+  await dialog.getByLabel("Amount (pcs)").fill("4");
+  await dialog.getByRole("button", { name: "Add to stock" }).click();
+  await expect(dialog.getByText(/Added 4 of new size 15 inch · IN\/\d{5}/)).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(stockPanel(page).getByText("Total on hand: 16 pcs")).toBeVisible();
+  await expect(stockPanel(page).locator('[data-size="15 inch"]')).toContainText("4 pcs");
+  await expect(stockPanel(page).locator('[data-size="18 inch"]')).toContainText("12 pcs");
+  const sizeTabs = page.getByRole("navigation", { name: "Sizes" });
+  await expect(sizeTabs.getByRole("link", { name: /18 inch/ })).toContainText("12");
+  await expect(sizeTabs.getByRole("link", { name: /15 inch/ })).toContainText("4");
+
+  await page.screenshot({ path: `test-results/${info.project.name}-item.png`, fullPage: true });
+
+  // Subtracting from one size never touches the other.
+  dialog = await stockDialog(page, "Subtract");
+  await dialog.getByLabel("Size", { exact: true }).selectOption({ label: "15 inch" });
+  await dialog.getByLabel("Amount (pcs)").fill("5");
+  await dialog.getByRole("button", { name: "Subtract from stock" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Not enough");
+  await dialog.getByRole("button", { name: "Close" }).click();
+
+  // The product list shows one item with both sizes.
   await page.goto("/products?q=Cordless");
-  await expect(page.getByText(/18 inch/).filter({ visible: true })).toHaveCount(1);
-  await expect(page.getByText(/15 inch/).filter({ visible: true })).toHaveCount(1);
+  await expect(page.getByText("1 item")).toBeVisible();
+  await expect(page.getByText(/18 inch · 12/).filter({ visible: true })).toHaveCount(1);
+  await expect(page.getByText(/15 inch · 4/).filter({ visible: true })).toHaveCount(1);
+  await page.screenshot({ path: `test-results/${info.project.name}-list.png`, fullPage: true });
 
   // Product list search + location filter.
   await page.goto(`/products?q=DRL-${run}`);
@@ -147,7 +166,7 @@ test("owner sets up inventory, moves stock and invites a teammate", async ({ pag
   await expect(mate).toHaveURL(/\/dashboard/);
   await mate.goto(`/products?q=DRL-${run}`);
   await mate.getByRole("link", { name: /Cordless drill/ }).first().click();
-  await expect(stockPanel(mate).getByText("Total on hand: 12 pcs")).toBeVisible();
+  await expect(stockPanel(mate).getByText("Total on hand: 16 pcs")).toBeVisible();
 
   // Members cannot manage the team.
   await mate.goto("/team");

@@ -6,7 +6,7 @@ import { cancelOperationAction, validateOperationAction } from "@/app/actions";
 import { ActionButton } from "@/components/forms/action-button";
 import { PageHeader, StateBadge } from "@/components/layout-bits";
 import { db } from "@/db";
-import { formatDateTime, formatQty, OPERATION_LABELS } from "@/lib/format";
+import { formatDateTime, formatQty, itemName, OPERATION_LABELS } from "@/lib/format";
 import { requirePageContext } from "@/server/context";
 import { getOperation } from "@/server/reports";
 
@@ -92,7 +92,7 @@ export default async function OperationPage({ params }: PageProps<"/operations/[
             {data.lines.map((l) => (
               <li key={l.id} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-0">
                 <Link href={`/products/${l.productId}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-accent">
-                  {l.productName}
+                  {itemName(l.productName, l.productVariant)}
                   {l.sku ? <span className="ml-2 font-mono text-xs text-muted">{l.sku}</span> : null}
                 </Link>
                 <span className="text-sm font-semibold tabular-nums">

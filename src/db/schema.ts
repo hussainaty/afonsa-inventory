@@ -218,7 +218,10 @@ export const product = inventory.table(
     organizationId: orgId(),
     categoryId: text("category_id").references(() => category.id, { onDelete: "set null" }),
     name: text("name").notNull(),
-    // Size or variant of the same part, e.g. "18 inch". Products sharing a name are sizes of one part.
+    // Odoo-style template/variant: every size of one item shares a family id
+    // (the first size's id). Each size keeps its own stock, codes and photos.
+    familyId: text("family_id").notNull(),
+    // The size of this variant, e.g. "18 inch". Null for items without sizes.
     variant: text("variant"),
     sku: text("sku"),
     barcode: text("barcode"),
@@ -235,6 +238,7 @@ export const product = inventory.table(
   (t) => [
     index("product_org_idx").on(t.organizationId, t.active),
     index("product_category_idx").on(t.categoryId),
+    index("product_family_idx").on(t.organizationId, t.familyId),
     uniqueIndex("product_org_name_variant_uq").on(
       t.organizationId,
       sql`lower(${t.name})`,

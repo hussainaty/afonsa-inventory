@@ -1,8 +1,8 @@
 import { aliasedTable, and, asc, eq, ilike, or, sql } from "drizzle-orm";
 import type { DB } from "@/db";
 import { category, location, product, stockMove, stockQuant } from "@/db/schema";
-import type { CategoryInput, NewProductInput, ProductInput } from "@/lib/validation";
-import { AppError, escapeLike, isUniqueViolation, newId } from "./common";
+import type { CategoryInput, NewProductInput, NewSizeStockInput, ProductInput } from "@/lib/validation";
+import { AppError, escapeLike, isUniqueViolation, newId, type Tx } from "./common";
 import { adjustStockTx } from "./stock";
 
 // ---------- Categories (hierarchical, like Odoo product categories) ----------
@@ -113,18 +113,32 @@ function productConflict(err: unknown): never {
   throw err;
 }
 
+/** The shared fields of an item, taken from any of its sizes. */
+async function familyTemplate(db: DB | Tx, orgId: string, familyId: string) {
+  const base = await db.query.product.findFirst({
+    where: and(eq(product.organizationId, orgId), eq(product.familyId, familyId)),
+  });
+  if (!base) throw new AppError("Item not found");
+  return base;
+}
+
 export async function createProduct(db: DB, orgId: string, userId: string, input: NewProductInput) {
   await assertCategory(db, orgId, input.categoryId);
-  const { initialQuantity, initialLocationId, cost, salePrice, ...rest } = input;
+  const { initialQuantity, initialLocationId, cost, salePrice, familyId, ...rest } = input;
   if (initialQuantity > 0 && !initialLocationId) throw new AppError("Choose where the opening stock is stored");
+  // A new size inherits the item's name so the family stays consistent.
+  if (familyId) rest.name = (await familyTemplate(db, orgId, familyId)).name;
+  if (familyId && !rest.variant) throw new AppError("Enter the size for this variant");
 
   try {
     // Product and opening stock are created atomically.
     return await db.transaction(async (tx) => {
+      const id = newId();
       const [created] = await tx
         .insert(product)
         .values({
-          id: newId(),
+          id,
+          familyId: familyId ?? id,
           organizationId: orgId,
           createdById: userId,
           costCents: cost,
@@ -154,15 +168,58 @@ export async function updateProduct(db: DB, orgId: string, id: string, input: Pr
   await assertCategory(db, orgId, input.categoryId);
   const { cost, salePrice, ...rest } = input;
   try {
-    const [row] = await db
-      .update(product)
-      .set({ ...rest, costCents: cost, salePriceCents: salePrice })
-      .where(and(eq(product.id, id), eq(product.organizationId, orgId)))
-      .returning();
-    if (!row) throw new AppError("Product not found");
-    return row;
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(product)
+        .set({ ...rest, costCents: cost, salePriceCents: salePrice })
+        .where(and(eq(product.id, id), eq(product.organizationId, orgId)))
+        .returning();
+      if (!row) throw new AppError("Product not found");
+      // Item-level fields are shared by every size; prices, codes and the size itself stay per size.
+      await tx
+        .update(product)
+        .set({ name: rest.name, categoryId: rest.categoryId, uom: rest.uom, description: rest.description })
+        .where(and(eq(product.organizationId, orgId), eq(product.familyId, row.familyId)));
+      return row;
+    });
   } catch (err) {
     productConflict(err);
+  }
+}
+
+/** Adds stock of a size that does not exist yet, creating the size from the item in the same transaction. */
+export async function addStockToNewSize(db: DB, orgId: string, userId: string, input: NewSizeStockInput) {
+  try {
+    return await db.transaction(async (tx) => {
+      const base = await familyTemplate(tx, orgId, input.familyId);
+      const id = newId();
+      await tx.insert(product).values({
+        id,
+        familyId: base.familyId,
+        organizationId: orgId,
+        createdById: userId,
+        name: base.name,
+        variant: input.variant,
+        categoryId: base.categoryId,
+        uom: base.uom,
+        costCents: base.costCents,
+        salePriceCents: base.salePriceCents,
+        description: base.description,
+      });
+      const op = await adjustStockTx(tx, orgId, userId, {
+        direction: "add",
+        productId: id,
+        locationId: input.locationId,
+        amount: input.amount,
+        reason: input.reason,
+        partner: input.partner,
+        note: input.note,
+      });
+      return { productId: id, reference: op.reference };
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new AppError(`Size “${input.variant}” already exists for this item`);
+    throw err;
   }
 }
 
@@ -240,6 +297,7 @@ export async function listProducts(db: DB, orgId: string, f: ProductFilters = {}
   return db
     .select({
       id: product.id,
+      familyId: product.familyId,
       name: product.name,
       variant: product.variant,
       sku: product.sku,
@@ -282,8 +340,8 @@ export async function findProductByCode(db: DB, orgId: string, code: string) {
   });
 }
 
-/** Other sizes/variants of the same part: products sharing the name. */
-export async function listSizes(db: DB, orgId: string, name: string) {
+/** All sizes of an item with their total on-hand quantity. */
+export async function listSizes(db: DB, orgId: string, familyId: string) {
   // Aliased on purpose: without a join Drizzle leaves columns unqualified, and the
   // stock subquery's "id" would then bind to stock_quant instead of product.
   const p = aliasedTable(product, "p");
@@ -296,6 +354,6 @@ export async function listSizes(db: DB, orgId: string, name: string) {
       onHand: sql<number>`cast(coalesce((select sum(q.quantity) from inventory.stock_quant q where q.product_id = "p"."id"), 0) as float8)`,
     })
     .from(p)
-    .where(and(eq(p.organizationId, orgId), sql`lower(${p.name}) = lower(${name})`))
-    .orderBy(asc(p.variant));
+    .where(and(eq(p.organizationId, orgId), eq(p.familyId, familyId)))
+    .orderBy(sql`${p.variant} nulls first`);
 }

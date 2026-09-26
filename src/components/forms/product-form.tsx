@@ -9,6 +9,7 @@ type Option = { id: string; label: string };
 
 type ProductValues = {
   id?: string;
+  familyId?: string | null;
   name?: string;
   variant?: string | null;
   categoryId?: string | null;
@@ -44,17 +45,19 @@ export function ProductForm({
   return (
     <form action={action} className="flex flex-col gap-6">
       {values.id ? <input type="hidden" name="id" value={values.id} /> : null}
+      {mode === "create" && values.familyId ? <input type="hidden" name="familyId" value={values.familyId} /> : null}
 
       <section className="card grid gap-4 p-5 sm:grid-cols-2">
         <h2 className="section-title sm:col-span-2">Details</h2>
-        <Field label="Name" htmlFor={f("name")} hint="Use the same name for every size of a part.">
-          <input id={f("name")} name="name" required maxLength={120} defaultValue={values.name} className="input" />
+        <Field label="Name" htmlFor={f("name")}>
+          <input id={f("name")} name="name" required maxLength={120} defaultValue={values.name} readOnly={Boolean(values.familyId) && mode === "create"} className="input read-only:bg-surface-2" />
         </Field>
-        <Field label="Size / variant" htmlFor={f("variant")} hint="Optional, e.g. 15 inch, 18 inch, Large.">
+        <Field label="Size" htmlFor={f("variant")} hint={values.familyId && mode === "create" ? "Required: the new size of this item." : "Optional, e.g. 15 inch. Add more sizes from the stock panel."}>
           <input
             id={f("variant")}
             name="variant"
             maxLength={60}
+            required={Boolean(values.familyId) && mode === "create"}
             defaultValue={values.variant ?? ""}
             placeholder="e.g. 18 inch"
             className="input"

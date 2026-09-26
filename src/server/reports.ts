@@ -77,6 +77,7 @@ export async function locationContents(db: DB, orgId: string, locationId: string
     .select({
       productId: product.id,
       productName: product.name,
+      productVariant: product.variant,
       sku: product.sku,
       uom: product.uom,
       locationId: location.id,
@@ -112,6 +113,7 @@ export async function listMoves(db: DB, orgId: string, f: MoveFilters = {}) {
       doneAt: stockMove.doneAt,
       productId: product.id,
       productName: product.name,
+      productVariant: product.variant,
       uom: product.uom,
       sourceName: srcLoc.fullName,
       sourceType: srcLoc.type,
@@ -181,6 +183,7 @@ export async function getOperation(db: DB, orgId: string, id: string) {
       quantity: stockMove.quantity,
       productId: product.id,
       productName: product.name,
+      productVariant: product.variant,
       sku: product.sku,
       uom: product.uom,
     })
@@ -216,6 +219,7 @@ export async function listReorderRules(db: DB, orgId: string, productId?: string
       id: reorderRule.id,
       productId: reorderRule.productId,
       productName: product.name,
+      productVariant: product.variant,
       locationId: reorderRule.locationId,
       locationName: location.fullName,
       minQuantity: reorderRule.minQuantity,
@@ -261,6 +265,7 @@ export async function replenishmentReport(db: DB, orgId: string) {
       ruleId: reorderRule.id,
       productId: product.id,
       productName: product.name,
+      productVariant: product.variant,
       sku: product.sku,
       uom: product.uom,
       locationId: location.id,
@@ -282,4 +287,27 @@ export async function replenishmentReport(db: DB, orgId: string) {
     .filter((r) => r.onHand <= r.minQuantity)
     .map((r) => ({ ...r, toOrder: Math.max(0, r.maxQuantity - r.onHand) }))
     .sort((a, b) => a.onHand - a.minQuantity - (b.onHand - b.minQuantity));
+}
+
+/** On-hand stock of every size of an item, per location. */
+export async function familyStock(db: DB, orgId: string, familyId: string) {
+  return db
+    .select({
+      productId: product.id,
+      variant: product.variant,
+      locationId: location.id,
+      fullName: location.fullName,
+      quantity: stockQuant.quantity,
+    })
+    .from(stockQuant)
+    .innerJoin(product, eq(product.id, stockQuant.productId))
+    .innerJoin(location, eq(location.id, stockQuant.locationId))
+    .where(
+      and(
+        eq(stockQuant.organizationId, orgId),
+        eq(product.familyId, familyId),
+        sql`${stockQuant.quantity} <> 0`,
+      ),
+    )
+    .orderBy(product.variant, location.fullName);
 }

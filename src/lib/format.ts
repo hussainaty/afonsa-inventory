@@ -42,3 +42,8 @@ export const OPERATION_LABELS = {
 } as const;
 
 export const STATE_LABELS = { draft: "Draft", done: "Done", cancelled: "Cancelled" } as const;
+
+/** "Cordless drill · 18 inch" for items with sizes. */
+export function itemName(name: string, variant?: string | null) {
+  return variant ? `${name} · ${variant}` : name;
+}

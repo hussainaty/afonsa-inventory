@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { CategoryBadge, EmptyState, PageHeader, StockBadge } from "@/components/layout-bits";
 import { db } from "@/db";
-import { formatMoney } from "@/lib/format";
+import { formatQty } from "@/lib/format";
 import { listCategories, listProducts, type ProductFilters } from "@/server/catalog";
 import { requirePageContext } from "@/server/context";
 import { mainImageIds } from "@/server/images";
@@ -37,13 +37,28 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
     listInternalLocations(db, ctx.org.id),
   ]);
   const thumbs = await mainImageIds(db, ctx.org.id, products.map((p) => p.id));
+  // One row per item; its sizes (variants) are listed inside the row.
+  const byFamily = new Map<string, typeof products>();
+  for (const p of products) byFamily.set(p.familyId, [...(byFamily.get(p.familyId) ?? []), p]);
+  const items = [...byFamily.entries()].map(([familyId, sizes]) => ({
+    familyId,
+    sizes,
+    name: sizes[0].name,
+    uom: sizes[0].uom,
+    categoryName: sizes[0].categoryName,
+    categoryColor: sizes[0].categoryColor,
+    hasSizes: sizes.length > 1 || sizes.some((s) => s.variant),
+    onHand: sizes.reduce((n, s) => n + s.onHand, 0),
+    minQty: sizes.reduce((n, s) => n + s.minQty, 0),
+    thumb: sizes.map((s) => thumbs.get(s.id)).find(Boolean),
+  }));
   const filtered = Boolean(filters.q || filters.categoryId || filters.locationId || filters.stock || filters.archived);
 
   return (
     <>
       <PageHeader
         title="Products"
-        description={`${products.length} ${filters.archived ? "archived " : ""}product${products.length === 1 ? "" : "s"}`}
+        description={`${items.length} ${filters.archived ? "archived " : ""}item${items.length === 1 ? "" : "s"}`}
         actions={
           <>
             <BarcodeScanner autoOpen={str("scan") === "1"} />
@@ -134,21 +149,24 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
       ) : (
         <>
           <ul className="flex flex-col gap-2 md:hidden">
-            {products.map((p) => (
-              <li key={p.id}>
-                <Link href={`/products/${p.id}`} className="card flex items-center gap-3 p-3 active:bg-surface-2">
-                  <Thumb id={thumbs.get(p.id)} />
+            {items.map((it) => (
+              <li key={it.familyId}>
+                <Link href={`/products/${it.sizes[0].id}`} className="card flex items-center gap-3 p-3 active:bg-surface-2">
+                  <Thumb id={it.thumb} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">
-                      {p.name}
-                      {p.variant ? <span className="text-accent"> · {p.variant}</span> : null}
-                    </p>
+                    <p className="truncate font-medium">{it.name}</p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <CategoryBadge name={p.categoryName} color={p.categoryColor} />
-                      {p.sku ? <span className="font-mono text-xs text-muted">{p.sku}</span> : null}
+                      <CategoryBadge name={it.categoryName} color={it.categoryColor} />
+                      {it.hasSizes
+                        ? it.sizes.map((s) => (
+                            <span key={s.id} className="badge bg-surface-2 text-text tabular-nums">
+                              {s.variant ?? "Standard"} · {formatQty(s.onHand)}
+                            </span>
+                          ))
+                        : null}
                     </div>
                   </div>
-                  <StockBadge onHand={p.onHand} min={p.minQty} uom={p.uom} />
+                  <StockBadge onHand={it.onHand} min={it.minQty} uom={it.uom} />
                 </Link>
               </li>
             ))}
@@ -158,36 +176,50 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
             <table className="data-table">
               <thead>
                 <tr>
-                  <th scope="col">Product</th>
+                  <th scope="col">Item</th>
                   <th scope="col">Category</th>
-                  <th scope="col">SKU</th>
-                  <th scope="col" className="text-right">
-                    Price
-                  </th>
+                  <th scope="col">Sizes</th>
                   <th scope="col" className="text-right">
                     On hand
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
-                  <tr key={p.id} className="hover:bg-surface-2">
+                {items.map((it) => (
+                  <tr key={it.familyId} className="hover:bg-surface-2">
                     <td>
-                      <Link href={`/products/${p.id}`} className="flex items-center gap-3 font-medium hover:text-accent">
-                        <Thumb id={thumbs.get(p.id)} small />
+                      <Link href={`/products/${it.sizes[0].id}`} className="flex items-center gap-3 font-medium hover:text-accent">
+                        <Thumb id={it.thumb} small />
                         <span>
-                          {p.name}
-                          {p.variant ? <span className="block text-xs font-normal text-accent">{p.variant}</span> : null}
+                          {it.name}
+                          {it.sizes[0].sku && !it.hasSizes ? (
+                            <span className="block font-mono text-xs font-normal text-muted">{it.sizes[0].sku}</span>
+                          ) : null}
                         </span>
                       </Link>
                     </td>
                     <td>
-                      <CategoryBadge name={p.categoryName} color={p.categoryColor} />
+                      <CategoryBadge name={it.categoryName} color={it.categoryColor} />
                     </td>
-                    <td className="font-mono text-xs text-muted">{p.sku ?? "—"}</td>
-                    <td className="text-right tabular-nums">{formatMoney(p.salePriceCents)}</td>
+                    <td>
+                      {it.hasSizes ? (
+                        <span className="flex flex-wrap gap-1.5">
+                          {it.sizes.map((s) => (
+                            <Link
+                              key={s.id}
+                              href={`/products/${s.id}`}
+                              className="badge bg-surface-2 text-text tabular-nums hover:bg-accent-soft hover:text-accent"
+                            >
+                              {s.variant ?? "Standard"} · {formatQty(s.onHand)}
+                            </Link>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
                     <td className="text-right">
-                      <StockBadge onHand={p.onHand} min={p.minQty} uom={p.uom} />
+                      <StockBadge onHand={it.onHand} min={it.minQty} uom={it.uom} />
                     </td>
                   </tr>
                 ))}

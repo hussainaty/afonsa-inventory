@@ -66,6 +66,8 @@ export type ProductInput = z.infer<typeof productInput>;
 export const newProductInput = productInput.extend({
   initialQuantity: nonNegativeQty.default(0),
   initialLocationId: optionalText(64),
+  // Set when adding another size to an existing item.
+  familyId: optionalText(64),
 });
 export type NewProductInput = z.infer<typeof newProductInput>;
 
@@ -104,6 +106,18 @@ export const stockAdjustInput = z.discriminatedUnion("direction", [
   }),
 ]);
 export type StockAdjustInput = z.infer<typeof stockAdjustInput>;
+
+/** "Add stock" with a size that does not exist yet: creates the size, then receives the amount. */
+export const newSizeStockInput = z.object({
+  familyId: requiredText("Item", 64),
+  variant: requiredText("Size", 60),
+  locationId: requiredText("Location", 64),
+  amount: quantity,
+  reason: z.enum(ADD_REASONS).default("restock"),
+  partner: optionalText(120),
+  note: optionalText(500),
+});
+export type NewSizeStockInput = z.infer<typeof newSizeStockInput>;
 
 export const transferInput = z
   .object({

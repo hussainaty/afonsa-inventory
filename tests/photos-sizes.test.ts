@@ -2,7 +2,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createDb, type DB } from "@/db";
 import { organization, user } from "@/db/schema";
-import { createProduct, listProducts, listSizes } from "@/server/catalog";
+import { addStockToNewSize, createProduct, listProducts, listSizes, updateProduct } from "@/server/catalog";
 import {
   addProductImage,
   deleteProductImage,
@@ -40,7 +40,7 @@ function memoryStorage() {
 }
 
 let db: DB;
-const base = { variant: null, categoryId: null, sku: null, barcode: null, uom: "pcs", cost: null, salePrice: null, description: null, initialQuantity: 0, initialLocationId: null };
+const base = { variant: null, familyId: null, categoryId: null, sku: null, barcode: null, uom: "pcs", cost: null, salePrice: null, description: null, initialQuantity: 0, initialLocationId: null };
 
 beforeAll(async () => {
   db = createDb("");
@@ -54,23 +54,53 @@ beforeAll(async () => {
   await ensureWorkspaceSetup(db, "o2");
 });
 
-describe("sizes of the same part", () => {
-  it("keeps each size as its own product and groups them by name", async () => {
-    await createProduct(db, "o1", "u1", { ...base, name: "Wheel rim", variant: "15 inch" });
+describe("items with sizes", () => {
+  let familyId: string;
+
+  it("adds stock of a brand-new size to the same item", async () => {
+    const rim15 = await createProduct(db, "o1", "u1", { ...base, name: "Wheel rim", variant: "15 inch" });
+    familyId = rim15.familyId;
+    expect(familyId).toBe(rim15.id);
     const stock = (await listInternalLocations(db, "o1"))[0];
-    await createProduct(db, "o1", "u1", {
-      ...base, name: "Wheel rim", variant: "18 inch", initialQuantity: 7, initialLocationId: stock.id,
+    const res = await addStockToNewSize(db, "o1", "u1", {
+      familyId, variant: "18 inch", locationId: stock.id, amount: 7, reason: "restock", partner: null, note: null,
     });
-    await createProduct(db, "o1", "u1", { ...base, name: "Hub cap" });
-    const sizes = await listSizes(db, "o1", "wheel RIM");
+    expect(res.reference).toMatch(/^IN\//);
+    const sizes = await listSizes(db, "o1", familyId);
     expect(sizes.map((s) => [s.variant, s.onHand])).toEqual([["15 inch", 0], ["18 inch", 7]]);
-    expect((await listProducts(db, "o1", { q: "18 inch" })).map((p) => p.variant)).toEqual(["18 inch"]);
+    expect((await listProducts(db, "o1", { q: "18 inch" })).map((p) => p.familyId)).toEqual([familyId]);
   });
 
-  it("rejects a duplicate name + size", async () => {
-    await expect(createProduct(db, "o1", "u1", { ...base, name: "wheel rim", variant: "18 INCH" })).rejects.toThrow(
-      /same name and size/,
-    );
+  it("rejects a size the item already has", async () => {
+    const stock = (await listInternalLocations(db, "o1"))[0];
+    await expect(
+      addStockToNewSize(db, "o1", "u1", {
+        familyId, variant: "18 INCH", locationId: stock.id, amount: 1, reason: "restock", partner: null, note: null,
+      }),
+    ).rejects.toThrow(/already exists/);
+    expect((await listSizes(db, "o1", familyId)).find((s) => s.variant === "18 inch")?.onHand).toBe(7);
+  });
+
+  it("keeps item-level fields shared when one size is edited", async () => {
+    const [rim15] = await listProducts(db, "o1", { q: "15 inch" });
+    await updateProduct(db, "o1", rim15.id, {
+      name: "Alloy wheel rim", variant: "15 inch", categoryId: null, sku: "RIM-15", barcode: null,
+      uom: "pcs", cost: null, salePrice: 5000, description: null,
+    });
+    const all = await listProducts(db, "o1", { q: "Alloy wheel rim" });
+    expect(all.map((p) => [p.variant, p.sku, p.salePriceCents])).toEqual([
+      ["15 inch", "RIM-15", 5000],
+      ["18 inch", null, null],
+    ]);
+  });
+
+  it("does not let another workspace add sizes to the item", async () => {
+    const other = (await listInternalLocations(db, "o2"))[0];
+    await expect(
+      addStockToNewSize(db, "o2", "u1", {
+        familyId, variant: "20 inch", locationId: other.id, amount: 1, reason: "restock", partner: null, note: null,
+      }),
+    ).rejects.toThrow(/Item not found/);
   });
 });
 

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState, PageHeader, StatCard } from "@/components/layout-bits";
 import { db } from "@/db";
-import { formatMoney, formatQty, formatRelative, OPERATION_LABELS } from "@/lib/format";
+import { formatMoney, formatQty, formatRelative, itemName, OPERATION_LABELS } from "@/lib/format";
 import { requirePageContext } from "@/server/context";
 import { dashboardStats, listMoves, replenishmentReport } from "@/server/reports";
 
@@ -77,7 +77,7 @@ export default async function DashboardPage() {
                     <li key={r.ruleId} className="border-b border-border last:border-0">
                       <Link href={`/products/${r.productId}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-surface-2">
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium">{r.productName}</span>
+                          <span className="block truncate text-sm font-medium">{itemName(r.productName, r.productVariant)}</span>
                           <span className="block truncate text-xs text-muted">{r.locationName}</span>
                         </span>
                         <span className="shrink-0 text-right text-sm tabular-nums">
@@ -117,7 +117,7 @@ export default async function DashboardPage() {
                             <Icon className="size-4" aria-hidden />
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">{m.productName}</span>
+                            <span className="block truncate text-sm font-medium">{itemName(m.productName, m.productVariant)}</span>
                             <span className="block truncate text-xs text-muted">
                               {OPERATION_LABELS[m.operationType]} · {m.userName ?? "Someone"} · {formatRelative(m.doneAt!)}
                             </span>

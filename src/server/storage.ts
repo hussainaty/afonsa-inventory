@@ -66,9 +66,10 @@ function s3Storage(): Storage {
 }
 
 function localStorage(): Storage {
-  const root = path.resolve(process.env.LOCAL_UPLOAD_DIR ?? ".data/uploads");
+  // Development-only folder: excluded from output tracing so it is never bundled for deployment.
+  const root = path.resolve(/*turbopackIgnore: true*/ process.env.LOCAL_UPLOAD_DIR ?? ".data/uploads");
   const resolve = (key: string) => {
-    const full = path.resolve(root, key);
+    const full = path.resolve(/*turbopackIgnore: true*/ root, key);
     if (!full.startsWith(root + path.sep)) throw new Error("Invalid storage key");
     return full;
   };

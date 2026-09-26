@@ -24,6 +24,7 @@ export default async function NewProductPage({ searchParams }: PageProps<"/produ
   const base = source?.product;
   const values = base
     ? {
+        familyId: base.familyId,
         name: base.name,
         categoryId: base.categoryId,
         uom: base.uom,
@@ -42,10 +43,10 @@ export default async function NewProductPage({ searchParams }: PageProps<"/produ
             <ChevronLeft className="size-4" aria-hidden /> Products
           </Link>
         }
-        title={base ? `Add another size of ${base.name}` : "Add product"}
+        title={base ? `Add a size to ${base.name}` : "Add product"}
         description={
           base
-            ? "Details are copied from the existing size. Enter the new size and its stock."
+            ? "Details are copied from the item. Enter the new size and its opening stock."
             : barcode
               ? `No product uses the code ${barcode} yet. Create it now.`
               : undefined

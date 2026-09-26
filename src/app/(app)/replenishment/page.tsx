@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState, PageHeader } from "@/components/layout-bits";
 import { db } from "@/db";
-import { formatQty } from "@/lib/format";
+import { formatQty, itemName } from "@/lib/format";
 import { requirePageContext } from "@/server/context";
 import { replenishmentReport } from "@/server/reports";
 
@@ -49,7 +49,7 @@ export default async function ReplenishmentPage() {
                 <tr key={r.ruleId}>
                   <td>
                     <Link href={`/products/${r.productId}`} className="font-medium hover:text-accent">
-                      {r.productName}
+                      {itemName(r.productName, r.productVariant)}
                     </Link>
                     {r.sku ? <span className="block font-mono text-xs text-muted">{r.sku}</span> : null}
                   </td>

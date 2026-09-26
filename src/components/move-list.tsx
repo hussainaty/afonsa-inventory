@@ -1,6 +1,6 @@
 import { ArrowDownLeft, ArrowUpRight, RefreshCcw, Shuffle } from "lucide-react";
 import Link from "next/link";
-import { formatDateTime, formatQty, OPERATION_LABELS } from "@/lib/format";
+import { formatDateTime, formatQty, itemName, OPERATION_LABELS } from "@/lib/format";
 import type { listMoves } from "@/server/reports";
 
 type Move = Awaited<ReturnType<typeof listMoves>>[number];
@@ -27,7 +27,7 @@ export function MoveList({ moves, showProduct = true }: { moves: Move[]; showPro
                 <p className="min-w-0 text-sm font-medium">
                   {showProduct ? (
                     <Link href={`/products/${m.productId}`} className="hover:text-accent">
-                      {m.productName}
+                      {itemName(m.productName, m.productVariant)}
                     </Link>
                   ) : (
                     OPERATION_LABELS[m.operationType]

@@ -14,6 +14,7 @@ import {
   inviteInput,
   locationInput,
   newProductInput,
+  newSizeStockInput,
   operationInput,
   productInput,
   reorderRuleInput,
@@ -198,6 +199,16 @@ export async function adjustStockAction(_: ActionState, form: FormData): Promise
     const op = await stock.adjustStock(db, ctx.org.id, ctx.user.id, input);
     refreshApp();
     return `${input.direction === "add" ? "Added" : "Subtracted"} ${input.amount} · ${op.reference}`;
+  });
+}
+
+export async function addStockNewSizeAction(_: ActionState, form: FormData): Promise<ActionState> {
+  return run(async () => {
+    const ctx = await requireActionContext();
+    const input = newSizeStockInput.parse(formToObject(form));
+    const res = await catalog.addStockToNewSize(db, ctx.org.id, ctx.user.id, input);
+    refreshApp();
+    return `Added ${input.amount} of new size ${input.variant} · ${res.reference}`;
   });
 }
 

@@ -5,6 +5,7 @@ import { OperationForm } from "@/components/forms/operation-form";
 import { EmptyState, PageHeader } from "@/components/layout-bits";
 import { db } from "@/db";
 import { listProducts } from "@/server/catalog";
+import { itemName } from "@/lib/format";
 import { requirePageContext } from "@/server/context";
 import { listInternalLocations } from "@/server/locations";
 
@@ -43,7 +44,7 @@ export default async function NewOperationPage({ searchParams }: PageProps<"/ope
       ) : (
         <OperationForm
           defaultType={type}
-          products={products.map((p) => ({ id: p.id, label: p.sku ? `${p.name} (${p.sku})` : p.name, uom: p.uom }))}
+          products={products.map((p) => ({ id: p.id, label: [itemName(p.name, p.variant), p.sku && `(${p.sku})`].filter(Boolean).join(" "), uom: p.uom }))}
           locations={locations.map((l) => ({ id: l.id, fullName: l.fullName }))}
         />
       )}

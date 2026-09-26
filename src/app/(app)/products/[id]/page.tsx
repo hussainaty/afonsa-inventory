@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, ChevronLeft, Plus, Ruler, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronLeft, Plus, Trash2, X } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -16,7 +16,7 @@ import { getProduct, listCategories, listSizes } from "@/server/catalog";
 import { listProductImages } from "@/server/images";
 import { canManage, requirePageContext } from "@/server/context";
 import { listInternalLocations } from "@/server/locations";
-import { listMoves, listReorderRules, productStockByLocation } from "@/server/reports";
+import { familyStock, listMoves, listReorderRules } from "@/server/reports";
 
 export async function generateMetadata({ params }: PageProps<"/products/[id]">): Promise<Metadata> {
   const ctx = await requirePageContext();
@@ -35,14 +35,16 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
   const manager = canManage(ctx.role);
 
   const [stock, locations, categories, rules, moves, photos, sizes] = await Promise.all([
-    productStockByLocation(db, ctx.org.id, id),
+    familyStock(db, ctx.org.id, product.familyId),
     listInternalLocations(db, ctx.org.id),
     listCategories(db, ctx.org.id),
     listReorderRules(db, ctx.org.id, id),
     listMoves(db, ctx.org.id, { productId: id, limit: 50 }),
     listProductImages(db, ctx.org.id, id),
-    listSizes(db, ctx.org.id, product.name),
+    listSizes(db, ctx.org.id, product.familyId),
   ]);
+  const hasSizes = sizes.length > 1 || Boolean(product.variant);
+  const sizeName = product.variant ?? "Standard";
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -55,7 +57,6 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
         title={
           <span className="flex flex-wrap items-center gap-2">
             {product.name}
-            {product.variant ? <span className="badge bg-accent-soft text-sm text-accent">{product.variant}</span> : null}
             {!product.active ? <span className="badge bg-warning-soft text-warning">Archived</span> : null}
           </span>
         }
@@ -78,55 +79,57 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
         </p>
       ) : null}
 
+      <nav aria-label="Sizes" className="mb-6 flex flex-wrap items-center gap-2">
+        {hasSizes ? <span className="mr-1 text-sm font-medium text-muted">Sizes:</span> : null}
+        {hasSizes
+          ? sizes.map((v) => (
+              <Link
+                key={v.id}
+                href={`/products/${v.id}`}
+                aria-current={v.id === product.id ? "page" : undefined}
+                className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium ${
+                  v.id === product.id
+                    ? "border-accent bg-accent text-accent-contrast"
+                    : "border-border bg-surface hover:bg-surface-2"
+                } ${v.active ? "" : "opacity-60"}`}
+              >
+                {v.variant ?? "Standard"}
+                <span className={`tabular-nums ${v.id === product.id ? "" : "text-muted"}`}>{formatQty(v.onHand)}</span>
+              </Link>
+            ))
+          : null}
+        <Link href={`/products/new?from=${product.id}`} className="btn-ghost btn-sm">
+          <Plus className="size-4" aria-hidden /> {hasSizes ? "Add size" : "Add sizes (e.g. 15″, 18″)"}
+        </Link>
+      </nav>
+
       <div className="flex flex-col gap-6">
-        <ProductPhotos productId={product.id} productName={product.name} images={photos} />
-
-        <section className="card overflow-hidden" aria-labelledby="sizes-heading">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-            <div>
-              <h2 id="sizes-heading" className="section-title">Sizes of this part</h2>
-              <p className="text-sm text-muted">Each size has its own stock, photos and codes.</p>
-            </div>
-            <Link href={`/products/new?from=${product.id}`} className="btn-secondary btn-sm">
-              <Plus className="size-4" aria-hidden /> Add another size
-            </Link>
-          </div>
-          <ul>
-            {sizes.map((v) => (
-              <li key={v.id} className="border-b border-border last:border-0">
-                <Link
-                  href={`/products/${v.id}`}
-                  aria-current={v.id === product.id ? "page" : undefined}
-                  className={`flex items-center gap-3 px-4 py-3 hover:bg-surface-2 ${v.id === product.id ? "bg-accent-soft/50" : ""}`}
-                >
-                  <Ruler className="size-4 shrink-0 text-muted" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {v.variant ?? "No size set"}
-                    {v.id === product.id ? <span className="text-muted"> (this one)</span> : null}
-                    {!v.active ? <span className="text-muted"> · archived</span> : null}
-                  </span>
-                  <span className="text-sm tabular-nums text-muted">
-                    {formatQty(v.onHand)} {v.uom}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-
         {product.active ? (
           <StockPanel
-            productId={product.id}
-            productName={product.name}
+            familyId={product.familyId}
+            currentProductId={product.id}
+            itemName={product.name}
             uom={product.uom}
-            stock={stock.map((s) => ({ locationId: s.locationId, fullName: s.fullName, quantity: s.quantity }))}
+            sizes={sizes.filter((v) => v.active).map((v) => ({ id: v.id, variant: v.variant }))}
+            stock={stock.map((s) => ({
+              productId: s.productId,
+              locationId: s.locationId,
+              fullName: s.fullName,
+              quantity: s.quantity,
+            }))}
             locations={locations.map((l) => ({ id: l.id, fullName: l.fullName }))}
           />
         ) : null}
 
+        <ProductPhotos
+          productId={product.id}
+          productName={hasSizes ? `${product.name} ${sizeName}` : product.name}
+          images={photos}
+        />
+
         <section className="card overflow-hidden" aria-labelledby="rr-heading">
           <div className="border-b border-border px-4 py-3">
-            <h2 id="rr-heading" className="section-title">Reordering rules</h2>
+            <h2 id="rr-heading" className="section-title">Reordering rules{hasSizes ? ` · ${sizeName}` : ""}</h2>
             <p className="text-sm text-muted">Get flagged when stock at a location drops to its minimum; reorder up to its maximum.</p>
           </div>
           {rules.length > 0 ? (
@@ -157,13 +160,16 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
 
         <section className="card overflow-hidden" aria-labelledby="history-heading">
           <div className="border-b border-border px-4 py-3">
-            <h2 id="history-heading" className="section-title">History</h2>
+            <h2 id="history-heading" className="section-title">History{hasSizes ? ` · ${sizeName}` : ""}</h2>
           </div>
           <MoveList moves={moves} showProduct={false} />
         </section>
 
         <section aria-labelledby="edit-heading">
-          <h2 id="edit-heading" className="section-title mb-3">Edit product</h2>
+          <h2 id="edit-heading" className="section-title">Edit {hasSizes ? `size ${sizeName}` : "item"}</h2>
+          <p className="mb-3 text-sm text-muted">
+            {hasSizes ? "Name, category, unit and description apply to every size; codes and prices are per size." : "Add sizes any time from the stock panel."}
+          </p>
           <ProductForm
             mode="edit"
             values={product}

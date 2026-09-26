@@ -8,7 +8,7 @@ import { NewLocationForm, RenameLocationForm } from "@/components/forms/location
 import { EmptyState, PageHeader } from "@/components/layout-bits";
 import { MoveList } from "@/components/move-list";
 import { db } from "@/db";
-import { formatQty } from "@/lib/format";
+import { formatQty, itemName } from "@/lib/format";
 import { canManage, requirePageContext } from "@/server/context";
 import { listMoves, locationContents } from "@/server/reports";
 
@@ -51,7 +51,7 @@ export default async function LocationPage({ params }: PageProps<"/locations/[id
                 <li key={`${r.productId}-${r.locationId}`} className="border-b border-border last:border-0">
                   <Link href={`/products/${r.productId}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{r.productName}</span>
+                      <span className="block truncate text-sm font-medium">{itemName(r.productName, r.productVariant)}</span>
                       <span className="block truncate text-xs text-muted">
                         {r.locationName}
                         {r.sku ? ` · ${r.sku}` : ""}
