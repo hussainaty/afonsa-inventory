@@ -6,8 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
+/** Only same-origin paths: "/\\evil.com" and similar parse as other origins and are refused. */
 function safeNext(next: string | null) {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  if (!next || typeof window === "undefined") return "/dashboard";
+  try {
+    const url = new URL(next, window.location.origin);
+    return url.origin === window.location.origin ? url.pathname + url.search : "/dashboard";
+  } catch {
+    return "/dashboard";
+  }
 }
 
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {

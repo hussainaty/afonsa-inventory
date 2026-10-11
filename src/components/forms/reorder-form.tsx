@@ -1,8 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { saveReorderRuleAction, type ActionState } from "@/app/actions";
-import { FormMessage, SubmitButton, useResetOnSuccess } from "../ui";
+import { saveReorderRuleAction } from "@/app/actions";
+import { FormMessage, SubmitButton, useResetOnSuccess, useServerForm } from "../ui";
 
 export function ReorderForm({
   productId,
@@ -13,10 +12,10 @@ export function ReorderForm({
   uom: string;
   locations: { id: string; fullName: string }[];
 }) {
-  const [state, action] = useActionState<ActionState, FormData>(saveReorderRuleAction, {});
+  const { state, pending, formProps } = useServerForm(saveReorderRuleAction);
   const ref = useResetOnSuccess(state);
   return (
-    <form ref={ref} action={action} className="flex flex-col gap-3">
+    <form ref={ref} {...formProps} className="flex flex-col gap-3">
       <input type="hidden" name="productId" value={productId} />
       <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end">
         <div className="field">
@@ -37,7 +36,7 @@ export function ReorderForm({
           <label htmlFor="rr-max" className="label">Max ({uom})</label>
           <input id="rr-max" name="maxQuantity" type="number" min={0} step="any" inputMode="decimal" required className="input" />
         </div>
-        <SubmitButton className="btn-secondary">Save rule</SubmitButton>
+        <SubmitButton pending={pending} className="btn-secondary">Save rule</SubmitButton>
       </div>
       <FormMessage state={state} />
     </form>

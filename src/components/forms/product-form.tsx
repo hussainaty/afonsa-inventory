@@ -1,9 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
-import { createProductAction, updateProductAction, type ActionState } from "@/app/actions";
+import { createProductAction, updateProductAction } from "@/app/actions";
 import { centsToInput } from "@/lib/format";
-import { Field, FormMessage, SubmitButton } from "../ui";
+import { Field, FormMessage, SubmitButton, useServerForm } from "../ui";
 
 type Option = { id: string; label: string };
 
@@ -36,14 +35,11 @@ export function ProductForm({
   locations?: Option[];
   defaultLocationId?: string;
 }) {
-  const [state, action] = useActionState<ActionState, FormData>(
-    mode === "create" ? createProductAction : updateProductAction,
-    {},
-  );
+  const { state, pending, formProps } = useServerForm(mode === "create" ? createProductAction : updateProductAction);
   const f = (name: string) => `product-${name}`;
 
   return (
-    <form action={action} className="flex flex-col gap-6">
+    <form {...formProps} className="flex flex-col gap-6">
       {values.id ? <input type="hidden" name="id" value={values.id} /> : null}
       {mode === "create" && values.familyId ? <input type="hidden" name="familyId" value={values.familyId} /> : null}
 
@@ -133,7 +129,7 @@ export function ProductForm({
       <div className="flex flex-col gap-3">
         <FormMessage state={state} />
         <div>
-          <SubmitButton pendingText="Saving…">{mode === "create" ? "Create product" : "Save changes"}</SubmitButton>
+          <SubmitButton pending={pending} pendingText="Saving…">{mode === "create" ? "Create product" : "Save changes"}</SubmitButton>
         </div>
       </div>
     </form>

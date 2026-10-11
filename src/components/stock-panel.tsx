@@ -1,17 +1,17 @@
 "use client";
 
 import { ClipboardCheck, MapPin, Minus, Plus, Shuffle, X } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import {
   addStockNewSizeAction,
   adjustStockAction,
   countStockAction,
   transferStockAction,
-  type ActionState,
 } from "@/app/actions";
 import { formatQty } from "@/lib/format";
 import { ADD_REASONS, REASON_LABELS, SUBTRACT_REASONS } from "@/lib/validation";
-import { FormMessage, SubmitButton } from "./ui";
+import { FormMessage, SubmitButton, useServerForm } from "./ui";
 
 type Mode = "add" | "subtract" | "move" | "count";
 type Loc = { id: string; fullName: string };
@@ -59,7 +59,7 @@ function StockForm({
       : mode === "count"
         ? countStockAction
         : adjustStockAction;
-  const [state, formAction] = useActionState<ActionState, FormData>(action, {});
+  const { state, pending, formProps } = useServerForm(action);
   const [loc, setLoc] = useState(initialLocationId);
 
   const rowsForSize = stock.filter((s) => s.productId === productId);
@@ -76,8 +76,20 @@ function StockForm({
 
   const id = (n: string) => `stock-${mode}-${n}`;
 
+  if (mode === "move" && locations.length < 2) {
+    return (
+      <div className="flex flex-col gap-3 text-sm">
+        <p>Moving stock needs at least two locations, and this workspace has one.</p>
+        <p className="text-muted">Add a section (for example “Shelf A”) first. Only owners and admins can add locations.</p>
+        <Link href="/locations" className="btn-secondary self-start">
+          Go to Locations
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form {...formProps} className="flex flex-col gap-4">
       {isNewSize ? <input type="hidden" name="familyId" value={familyId} /> : <input type="hidden" name="productId" value={productId} />}
       {(mode === "add" || mode === "subtract") && !isNewSize ? <input type="hidden" name="direction" value={mode} /> : null}
 
@@ -164,7 +176,7 @@ function StockForm({
           required
           autoFocus={!isNewSize}
           defaultValue={mode === "count" ? qtyAt(loc) : undefined}
-          key={`${productId}-${loc}`}
+          key={mode === "count" ? `${productId}-${loc}` : "amount"}
           className="input text-lg tabular-nums"
         />
         {mode === "subtract" ? (
@@ -205,7 +217,7 @@ function StockForm({
       </div>
 
       <FormMessage state={state} />
-      <SubmitButton className={mode === "subtract" ? "btn-danger" : "btn-primary"} pendingText="Saving…">
+      <SubmitButton pending={pending} className={mode === "subtract" ? "btn-danger" : "btn-primary"} pendingText="Saving…">
         {mode === "add"
           ? "Add to stock"
           : mode === "subtract"
@@ -245,7 +257,13 @@ export function StockPanel({
   const total = stock.reduce((s, r) => s + r.quantity, 0);
   const hasSizes = sizes.length > 1 || sizes.some((s) => s.variant);
 
-  function openWith(m: Mode, productId = currentProductId, locationId?: string) {
+  function openWith(m: Mode, requestedProductId = currentProductId, locationId?: string) {
+    const hasStock = (id: string) => stock.some((s) => s.productId === id && s.quantity > 0);
+    // Taking stock out needs a size that has some: fall back to the first stocked size.
+    const productId =
+      (m === "subtract" || m === "move") && !hasStock(requestedProductId)
+        ? (stock.find((s) => s.quantity > 0)?.productId ?? requestedProductId)
+        : requestedProductId;
     setMode(m);
     setTarget({
       productId,

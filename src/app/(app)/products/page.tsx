@@ -61,7 +61,7 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
         description={`${items.length} ${filters.archived ? "archived " : ""}item${items.length === 1 ? "" : "s"}`}
         actions={
           <>
-            <BarcodeScanner autoOpen={str("scan") === "1"} />
+            <BarcodeScanner key={str("scan") ?? "closed"} autoOpen={Boolean(str("scan"))} />
             <Link href="/products/new" className="btn-primary">
               <Plus className="size-4" aria-hidden /> Add product
             </Link>

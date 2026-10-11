@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { ActionState } from "@/app/actions";
-import { FormMessage, SubmitButton } from "../ui";
+import { FormMessage, SubmitButton, useServerForm } from "../ui";
 
 /** A one-button form bound to a server action, with an optional confirm step. */
 export function ActionButton({
@@ -20,24 +20,28 @@ export function ActionButton({
   className?: string;
   confirm?: string;
   pendingText?: string;
+  /** Success messages can be hidden for compact buttons; errors are always shown. */
   showMessage?: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, {});
+  const { state, pending, formProps } = useServerForm(action);
   return (
     <form
-      action={formAction}
       className="flex flex-col gap-2"
       onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
+        if (confirm && !window.confirm(confirm)) {
+          e.preventDefault();
+          return;
+        }
+        formProps.onSubmit(e);
       }}
     >
       {Object.entries(fields).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
-      <SubmitButton className={className} pendingText={pendingText}>
+      <SubmitButton pending={pending} className={className} pendingText={pendingText}>
         {children}
       </SubmitButton>
-      {showMessage ? <FormMessage state={state} /> : null}
+      {showMessage || state.error ? <FormMessage state={state} /> : null}
     </form>
   );
 }

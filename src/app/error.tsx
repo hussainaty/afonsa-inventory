@@ -11,7 +11,8 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <div className="card w-full max-w-sm p-6">
         <h1 className="text-xl font-semibold tracking-tight">Something went wrong</h1>
         <p className="mt-2 text-sm text-muted">
-          The page couldn’t load. Check your connection and try again.
+          The page couldn’t load. If your connection is fine, the service may be starting up — wait a moment and try
+          again.
           {error.digest ? <span className="mt-2 block font-mono text-xs">Ref: {error.digest}</span> : null}
         </p>
         <button type="button" onClick={reset} className="btn-primary mt-6">

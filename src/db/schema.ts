@@ -135,7 +135,15 @@ export const invitation = inventory.table(
   (t) => [index("invitation_org_idx").on(t.organizationId)],
 );
 
-export const authSchema = { user, session, account, verification, organization, member, invitation };
+/** Better Auth rate-limit counters, shared by all serverless instances. */
+export const rateLimit = inventory.table("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
+
+export const authSchema = { user, session, account, verification, organization, member, invitation, rateLimit };
 
 // ---------- Inventory domain (Odoo-style double-entry model) ----------
 //

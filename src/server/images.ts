@@ -4,7 +4,8 @@ import { product, productImage } from "@/db/schema";
 import { AppError, newId } from "./common";
 import type { Storage } from "./storage";
 
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+// Below Vercel's 4.5 MB request-body limit, so an oversized file gets our message, not a platform 413.
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 export const MAX_IMAGES_PER_PRODUCT = 12;
 
 const TYPES = [
@@ -64,7 +65,7 @@ export async function addProductImage(
 ) {
   await assertProduct(db, orgId, productId);
   if (file.bytes.byteLength === 0) throw new AppError("The file is empty");
-  if (file.bytes.byteLength > MAX_IMAGE_BYTES) throw new AppError("Photos must be smaller than 5 MB");
+  if (file.bytes.byteLength > MAX_IMAGE_BYTES) throw new AppError("Photos must be smaller than 4 MB");
   const kind = sniffImageType(file.bytes);
   if (!kind) throw new AppError("Only JPEG, PNG or WebP photos are supported");
 

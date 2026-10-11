@@ -18,7 +18,7 @@ export function BarcodeScanner({ autoOpen = false }: { autoOpen?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [open, setOpen] = useState(autoOpen);
-  const [status, setStatus] = useState<"idle" | "scanning" | "unsupported" | "denied" | "looking">("idle");
+  const [status, setStatus] = useState<"idle" | "scanning" | "unsupported" | "denied" | "looking" | "failed">("idle");
   const [manual, setManual] = useState("");
 
   const stop = useCallback(() => {
@@ -32,7 +32,15 @@ export function BarcodeScanner({ autoOpen = false }: { autoOpen?: boolean }) {
       if (!value) return;
       stop();
       setStatus("looking");
-      const id = await findByCodeAction(value).catch(() => null);
+      let id: string | null;
+      try {
+        id = await findByCodeAction(value);
+      } catch {
+        // A network failure is not "no such product": do not send the user to Add product.
+        setManual(value);
+        setStatus("failed");
+        return;
+      }
       setOpen(false);
       router.push(id ? `/products/${id}` : `/products/new?barcode=${encodeURIComponent(value)}`);
     },
@@ -124,6 +132,7 @@ export function BarcodeScanner({ autoOpen = false }: { autoOpen?: boolean }) {
             {status === "denied" && "Camera access was blocked. Allow it in your browser settings, or type the code."}
             {status === "idle" && "Starting camera…"}
             {status === "looking" && "Looking up product…"}
+            {status === "failed" && "Couldn’t look that code up. Check your connection and press Find to try again."}
           </p>
           <form
             className="flex gap-2"
@@ -143,6 +152,7 @@ export function BarcodeScanner({ autoOpen = false }: { autoOpen?: boolean }) {
               className="input"
               maxLength={64}
               autoComplete="off"
+              autoFocus={status === "unsupported" || status === "denied"}
             />
             <button type="submit" className="btn-primary" disabled={!manual.trim()}>
               <Keyboard className="size-4" aria-hidden /> Find

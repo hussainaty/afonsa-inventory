@@ -47,3 +47,15 @@ export const STATE_LABELS = { draft: "Draft", done: "Done", cancelled: "Cancelle
 export function itemName(name: string, variant?: string | null) {
   return variant ? `${name} · ${variant}` : name;
 }
+
+const PLACE_WORDS: Record<string, string> = {
+  vendor: "Supplier",
+  customer: "Customer",
+  inventory: "Stock count",
+  scrap: "Damaged / scrap",
+};
+
+/** Shop-floor wording for a location: "Supplier" instead of "Partners/Vendors". */
+export function placeName(fullName: string, type?: string | null) {
+  return (type && PLACE_WORDS[type]) || fullName;
+}

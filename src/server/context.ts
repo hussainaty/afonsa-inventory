@@ -6,11 +6,8 @@ import { db } from "@/db";
 import { member, organization } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { AppError } from "./common";
-import { ensureWorkspaceSetup } from "./locations";
 
 export type Role = "owner" | "admin" | "member";
-
-const setUpOrgs = new Set<string>();
 
 /** Session + active workspace for the current request, or null when signed out. */
 export const getContext = cache(async () => {
@@ -27,11 +24,6 @@ export const getContext = cache(async () => {
   // Membership is always re-checked here: the session's active org alone is not trusted.
   const active =
     memberships.find((m) => m.orgId === session.session.activeOrganizationId) ?? memberships[0] ?? null;
-
-  if (active && !setUpOrgs.has(active.orgId)) {
-    await ensureWorkspaceSetup(db, active.orgId);
-    setUpOrgs.add(active.orgId);
-  }
 
   return {
     user: session.user,

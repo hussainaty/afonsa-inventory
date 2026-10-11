@@ -6,6 +6,11 @@ import { createDb } from "../src/db";
 // Applies SQL migrations from ./drizzle. The journal lives in the app's own
 // "inventory" schema so a shared database's other schemas are never touched.
 async function main() {
+  // Preview/branch builds must never migrate the production database.
+  if (process.env.VERCEL && process.env.VERCEL_ENV !== "production") {
+    console.log(`Skipping migrations (VERCEL_ENV=${process.env.VERCEL_ENV}).`);
+    return;
+  }
   const url = process.env.DATABASE_URL;
   const db = createDb(url);
   const opts = { migrationsFolder: "drizzle", migrationsSchema: "inventory" };

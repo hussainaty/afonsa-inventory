@@ -11,18 +11,17 @@
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "vercel-build": "tsx scripts/migrate.ts && next build",
+    "vercel-build": "next build && tsx scripts/migrate.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",
     "@aws-sdk/s3-request-presigner": "^3.1141.0",
     "@electric-sql/pglite": "^0.5.8",
-    "@libsql/client": "^0.18.0",
     "better-auth": "^1.7.6",
     "drizzle-orm": "^0.45.3",
     "lucide-react": "^1.48.0",
-    "next": "16.3.6",
+    "next": "^16.3.8",
     "postgres": "^3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -34,13 +33,16 @@
     "@types/node": "^24.19.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^18.0.4",
+    "dotenv": "^18.0.7",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "^16.3.8",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.2"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

@@ -114,7 +114,7 @@ export async function createLocation(
   const parent = await db.query.location.findFirst({
     where: and(eq(location.id, input.parentId), eq(location.organizationId, orgId)),
   });
-  if (!parent || !parent.warehouseId || (parent.type !== "internal" && parent.type !== "view")) {
+  if (!parent || !parent.active || !parent.warehouseId || (parent.type !== "internal" && parent.type !== "view")) {
     throw new AppError("Choose a warehouse location as the parent");
   }
   if (input.name.includes("/")) throw new AppError("Location names cannot contain “/”");
@@ -184,6 +184,18 @@ export async function archiveLocation(db: DB, orgId: string, id: string) {
       .from(stockQuant)
       .where(and(inArray(stockQuant.locationId, ids), sql`${stockQuant.quantity} <> 0`));
     if (stock.n > 0) throw new AppError("Move or remove the stock in this location before archiving it");
+    const [left] = await tx
+      .select({ n: sql<number>`cast(count(*) as int)` })
+      .from(location)
+      .where(
+        and(
+          eq(location.organizationId, orgId),
+          eq(location.type, "internal"),
+          eq(location.active, true),
+          sql`${location.id} not in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`,
+        ),
+      );
+    if (left.n === 0) throw new AppError("This is your last location. Create another one before archiving it.");
     await tx.update(location).set({ active: false }).where(inArray(location.id, ids));
   });
 }

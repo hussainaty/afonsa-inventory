@@ -71,7 +71,15 @@ async function applyMoves(tx: Tx, orgId: string, moves: MoveSpec[]) {
     if (!(m.quantity > 0)) throw new AppError("Quantity must be greater than 0");
   }
 
-  // Consistent lock order avoids deadlocks between concurrent operations.
+  // Lock every quant this operation touches (source and destination) in one
+  // stable order, so opposite transfers (A->B and B->A) cannot deadlock.
+  await tx
+    .select({ id: stockQuant.id })
+    .from(stockQuant)
+    .where(and(inArray(stockQuant.productId, prodIds), inArray(stockQuant.locationId, locIds)))
+    .orderBy(asc(stockQuant.productId), asc(stockQuant.locationId))
+    .for("update");
+
   const ordered = [...moves].sort((a, b) =>
     `${a.productId}${a.sourceLocationId}`.localeCompare(`${b.productId}${b.sourceLocationId}`),
   );
@@ -222,10 +230,13 @@ export function transferStock(db: DB, orgId: string, userId: string, input: Tran
 export function applyCount(db: DB, orgId: string, userId: string, input: CountInput) {
   return db.transaction(async (tx) => {
     await assertInternal(tx, orgId, input.locationId);
-    const quant = await tx.query.stockQuant.findFirst({
-      where: and(eq(stockQuant.productId, input.productId), eq(stockQuant.locationId, input.locationId)),
-      columns: { quantity: true },
-    });
+    // Row lock: a sale committing between this read and the adjustment would
+    // otherwise be applied on top of the counted quantity.
+    const [quant] = await tx
+      .select({ quantity: stockQuant.quantity })
+      .from(stockQuant)
+      .where(and(eq(stockQuant.productId, input.productId), eq(stockQuant.locationId, input.locationId)))
+      .for("update");
     const diff = roundQty(input.countedQuantity - (quant?.quantity ?? 0));
     if (diff === 0) return null;
     const virtual = await getSystemLocationId(tx, orgId, "inventory");
@@ -242,8 +253,18 @@ export function applyCount(db: DB, orgId: string, userId: string, input: CountIn
 
 // ---------- Multi-line operations (receipts, deliveries, internal transfers) ----------
 
-/** Creates a draft operation; stock changes only when it is validated. */
-export async function createOperation(db: DB, orgId: string, userId: string, input: OperationInput) {
+/**
+ * Creates an operation. As a draft, stock changes only when it is validated later.
+ * With `validateNow`, it is validated in the same transaction, so a failed
+ * validation (for example not enough stock) leaves no orphan draft behind.
+ */
+export async function createOperation(
+  db: DB,
+  orgId: string,
+  userId: string,
+  input: OperationInput,
+  opts: { validateNow?: boolean } = {},
+) {
   return db.transaction(async (tx) => {
     let source = input.sourceLocationId;
     let dest = input.destLocationId;
@@ -287,12 +308,17 @@ export async function createOperation(db: DB, orgId: string, userId: string, inp
         state: "draft" as const,
       })),
     );
+    if (opts.validateNow) await validateOperationTx(tx, orgId, userId, opId);
     return { id: opId, reference };
   });
 }
 
-export async function validateOperation(db: DB, orgId: string, userId: string, operationId: string) {
-  await db.transaction(async (tx) => {
+export function validateOperation(db: DB, orgId: string, userId: string, operationId: string) {
+  return db.transaction((tx) => validateOperationTx(tx, orgId, userId, operationId));
+}
+
+async function validateOperationTx(tx: Tx, orgId: string, userId: string, operationId: string) {
+  {
     // Lock the operation row so a double-click cannot validate it twice.
     const [op] = await tx
       .select()
@@ -316,7 +342,7 @@ export async function validateOperation(db: DB, orgId: string, userId: string, o
       .update(operation)
       .set({ state: "done", validatedAt: now, validatedById: userId })
       .where(eq(operation.id, operationId));
-  });
+  }
 }
 
 export async function cancelOperation(db: DB, orgId: string, operationId: string) {

@@ -51,6 +51,10 @@ npm run test:e2e      # full browser journey, desktop + mobile (npx playwright i
    - `BETTER_AUTH_SECRET`: a long random string.
    - `BETTER_AUTH_URL` (optional): the public URL. It defaults to the Vercel production domain.
    - `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`: a private bucket, with an application key limited to that bucket.
-2. Deploy. The `vercel-build` script applies migrations (`scripts/migrate.ts`) before `next build`.
+   - `SIGNUP_ALLOWED_EMAILS` (optional, recommended): comma-separated emails or `@domain.com` entries allowed to sign up. Invited people can always sign up. Empty means anyone can.
+2. Deploy. The `vercel-build` script runs `next build`, then applies migrations (`scripts/migrate.ts`) for production deployments only. Preview deployments never touch the database schema.
+3. A daily Vercel cron calls `/api/health`, which keeps a free Supabase project from pausing after a week without activity.
+
+Set `DATABASE_URL` for the **Production** environment only.
 
 Schema changes: edit `src/db/schema.ts`, run `npm run db:generate`, and commit the new file in `drizzle/`.

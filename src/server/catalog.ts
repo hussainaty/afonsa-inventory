@@ -88,10 +88,16 @@ export async function deleteCategory(db: DB, orgId: string, id: string) {
       where: and(eq(category.id, id), eq(category.organizationId, orgId)),
     });
     if (!cat) throw new AppError("Category not found");
-    await tx
-      .update(category)
-      .set({ parentId: cat.parentId })
-      .where(and(eq(category.organizationId, orgId), eq(category.parentId, id)));
+    try {
+      await tx
+        .update(category)
+        .set({ parentId: cat.parentId })
+        .where(and(eq(category.organizationId, orgId), eq(category.parentId, id)));
+    } catch (err) {
+      if (isUniqueViolation(err))
+        throw new AppError("A sub-category has the same name as a category one level up. Rename it first.");
+      throw err;
+    }
     await tx.delete(category).where(eq(category.id, id));
   });
 }
@@ -126,9 +132,21 @@ export async function createProduct(db: DB, orgId: string, userId: string, input
   await assertCategory(db, orgId, input.categoryId);
   const { initialQuantity, initialLocationId, cost, salePrice, familyId, ...rest } = input;
   if (initialQuantity > 0 && !initialLocationId) throw new AppError("Choose where the opening stock is stored");
-  // A new size inherits the item's name so the family stays consistent.
-  if (familyId) rest.name = (await familyTemplate(db, orgId, familyId)).name;
-  if (familyId && !rest.variant) throw new AppError("Enter the size for this variant");
+  // One item per name: adding a name that already exists adds a size to that item,
+  // and every size shares the item's name, category, unit and description.
+  const family = familyId
+    ? await familyTemplate(db, orgId, familyId)
+    : await db.query.product.findFirst({
+        where: and(eq(product.organizationId, orgId), sql`lower(${product.name}) = lower(${rest.name})`),
+      });
+  if (family) {
+    if (!rest.variant)
+      throw new AppError(`“${family.name}” already exists. Enter a size to add it as another size of that item.`);
+    rest.name = family.name;
+    rest.categoryId = family.categoryId;
+    rest.uom = family.uom;
+    rest.description = family.description;
+  }
 
   try {
     // Product and opening stock are created atomically.
@@ -138,7 +156,7 @@ export async function createProduct(db: DB, orgId: string, userId: string, input
         .insert(product)
         .values({
           id,
-          familyId: familyId ?? id,
+          familyId: family?.familyId ?? id,
           organizationId: orgId,
           createdById: userId,
           costCents: cost,
@@ -175,6 +193,15 @@ export async function updateProduct(db: DB, orgId: string, id: string, input: Pr
         .where(and(eq(product.id, id), eq(product.organizationId, orgId)))
         .returning();
       if (!row) throw new AppError("Product not found");
+      const clash = await tx.query.product.findFirst({
+        where: and(
+          eq(product.organizationId, orgId),
+          sql`lower(${product.name}) = lower(${rest.name})`,
+          sql`${product.familyId} <> ${row.familyId}`,
+        ),
+        columns: { id: true },
+      });
+      if (clash) throw new AppError(`Another item is already called “${rest.name}”. Choose a different name.`);
       // Item-level fields are shared by every size; prices, codes and the size itself stay per size.
       await tx
         .update(product)
@@ -225,6 +252,14 @@ export async function addStockToNewSize(db: DB, orgId: string, userId: string, i
 
 /** Products with stock history are archived, never hard-deleted, so the audit trail survives. */
 export async function setProductActive(db: DB, orgId: string, id: string, active: boolean) {
+  if (!active) {
+    const [stock] = await db
+      .select({ total: sql<number>`cast(coalesce(sum(${stockQuant.quantity}), 0) as float8)` })
+      .from(stockQuant)
+      .where(and(eq(stockQuant.organizationId, orgId), eq(stockQuant.productId, id)));
+    if (stock.total > 0)
+      throw new AppError("This size still has stock. Subtract or move it out before archiving.");
+  }
   const [row] = await db
     .update(product)
     .set({ active })
@@ -262,7 +297,8 @@ export async function listProducts(db: DB, orgId: string, f: ProductFilters = {}
       where: and(eq(location.id, f.locationId), eq(location.organizationId, orgId)),
       columns: { fullName: true },
     });
-    locPrefix = loc?.fullName ?? "\u0000";
+    if (!loc) return [];
+    locPrefix = loc.fullName;
   }
 
   const quantInScope = locPrefix

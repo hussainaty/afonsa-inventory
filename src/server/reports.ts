@@ -284,7 +284,7 @@ export async function replenishmentReport(db: DB, orgId: string) {
     .innerJoin(location, eq(location.id, reorderRule.locationId))
     .where(and(eq(reorderRule.organizationId, orgId), eq(product.active, true)));
   return rows
-    .filter((r) => r.onHand <= r.minQuantity)
+    .filter((r) => r.maxQuantity > 0 && r.onHand <= r.minQuantity)
     .map((r) => ({ ...r, toOrder: Math.max(0, r.maxQuantity - r.onHand) }))
     .sort((a, b) => a.onHand - a.minQuantity - (b.onHand - b.minQuantity));
 }
@@ -306,6 +306,7 @@ export async function familyStock(db: DB, orgId: string, familyId: string) {
       and(
         eq(stockQuant.organizationId, orgId),
         eq(product.familyId, familyId),
+        eq(product.active, true),
         sql`${stockQuant.quantity} <> 0`,
       ),
     )

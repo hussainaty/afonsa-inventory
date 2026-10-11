@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { switchWorkspaceAction } from "@/app/actions";
 import { Brand } from "./brand";
@@ -139,10 +139,11 @@ export function MobileNav(props: Props) {
     if (!open && d.open) d.close();
   }, [open]);
 
-  const tabs = [
+  const router = useRouter();
+  const tabs: { href: string; label: string; icon: typeof Boxes; primary?: boolean }[] = [
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
     { href: "/products", label: "Products", icon: Boxes },
-    { href: "/products?scan=1", label: "Scan", icon: ScanLine, primary: true },
+    { href: "scan", label: "Scan", icon: ScanLine, primary: true },
     { href: "/operations", label: "Operations", icon: ArrowLeftRight },
   ];
 
@@ -162,6 +163,21 @@ export function MobileNav(props: Props) {
         <ul className="mx-auto grid max-w-lg grid-cols-5">
           {tabs.map(({ href, label, icon: Icon, primary }) => {
             const active = !primary && isActive(pathname, href);
+            if (primary)
+              return (
+                <li key={href}>
+                  <button
+                    type="button"
+                    aria-label="Scan a barcode"
+                    onClick={() => router.push(`/products?scan=${Date.now()}`)}
+                    className="flex min-h-16 w-full flex-col items-center justify-center"
+                  >
+                    <span className="grid size-11 place-items-center rounded-2xl bg-accent text-accent-contrast shadow-sm">
+                      <Icon className="size-5" aria-hidden />
+                    </span>
+                  </button>
+                </li>
+              );
             return (
               <li key={href}>
                 <Link
@@ -171,14 +187,8 @@ export function MobileNav(props: Props) {
                     active ? "text-accent" : "text-muted"
                   }`}
                 >
-                  {primary ? (
-                    <span className="grid size-11 place-items-center rounded-2xl bg-accent text-accent-contrast shadow-sm">
-                      <Icon className="size-5" aria-hidden />
-                    </span>
-                  ) : (
-                    <Icon className="size-5" aria-hidden />
-                  )}
-                  {primary ? <span className="sr-only">{label}</span> : label}
+                  <Icon className="size-5" aria-hidden />
+                  {label}
                 </Link>
               </li>
             );

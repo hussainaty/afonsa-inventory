@@ -1,9 +1,9 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useActionState, useState } from "react";
-import { createOperationAction, type ActionState } from "@/app/actions";
-import { FormMessage, SubmitButton } from "../ui";
+import { useState } from "react";
+import { createOperationAction } from "@/app/actions";
+import { FormMessage, SubmitButton, useServerForm } from "../ui";
 
 type OpType = "receipt" | "delivery" | "internal";
 type Line = { key: number; productId: string; quantity: string };
@@ -23,7 +23,7 @@ export function OperationForm({
   locations: { id: string; fullName: string }[];
   defaultType?: OpType;
 }) {
-  const [state, action] = useActionState<ActionState, FormData>(createOperationAction, {});
+  const { state, pending, formProps } = useServerForm(createOperationAction);
   const [type, setType] = useState<OpType>(defaultType);
   const [lines, setLines] = useState<Line[]>([{ key: 0, productId: products[0]?.id ?? "", quantity: "" }]);
   const [nextKey, setNextKey] = useState(1);
@@ -36,7 +36,7 @@ export function OperationForm({
   );
 
   return (
-    <form action={action} className="flex flex-col gap-6">
+    <form {...formProps} className="flex flex-col gap-6">
       <input type="hidden" name="lines" value={payload} />
 
       <fieldset className="card p-5">
@@ -68,7 +68,7 @@ export function OperationForm({
         {type !== "receipt" ? (
           <div className="field">
             <label htmlFor="op-src" className="label">From location</label>
-            <select id="op-src" name="sourceLocationId" className="input" defaultValue={locations[0]?.id}>
+            <select key={`src-${type}`} id="op-src" name="sourceLocationId" className="input" defaultValue={locations[0]?.id}>
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>{l.fullName}</option>
               ))}
@@ -78,7 +78,7 @@ export function OperationForm({
         {type !== "delivery" ? (
           <div className="field">
             <label htmlFor="op-dst" className="label">To location</label>
-            <select id="op-dst" name="destLocationId" className="input" defaultValue={locations[type === "internal" ? 1 : 0]?.id ?? locations[0]?.id}>
+            <select key={`dst-${type}`} id="op-dst" name="destLocationId" className="input" defaultValue={locations[type === "internal" ? 1 : 0]?.id ?? locations[0]?.id}>
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>{l.fullName}</option>
               ))}
@@ -159,8 +159,8 @@ export function OperationForm({
       <div className="flex flex-col gap-3">
         <FormMessage state={state} />
         <div className="flex flex-wrap gap-2">
-          <SubmitButton name="validateNow" value="true" pendingText="Saving…">Save & validate</SubmitButton>
-          <SubmitButton name="validateNow" value="false" className="btn-secondary">Save as draft</SubmitButton>
+          <SubmitButton pending={pending} name="validateNow" value="true" pendingText="Saving…">Save & validate</SubmitButton>
+          <SubmitButton pending={pending} name="validateNow" value="false" className="btn-secondary">Save as draft</SubmitButton>
         </div>
         <p className="hint">Drafts don’t change stock until someone validates them.</p>
       </div>

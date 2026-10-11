@@ -1,19 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
-import { saveCategoryAction, type ActionState } from "@/app/actions";
-import { FormMessage, SubmitButton, useResetOnSuccess } from "../ui";
+import { saveCategoryAction } from "@/app/actions";
+import { FormMessage, SubmitButton, useResetOnSuccess, useServerForm } from "../ui";
 
 type Cat = { id: string; name: string; parentId: string | null; color: string; description: string | null };
 
 const SWATCHES = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#64748b"];
 
 export function CategoryForm({ category, parents }: { category?: Cat; parents: { id: string; path: string }[] }) {
-  const [state, action] = useActionState<ActionState, FormData>(saveCategoryAction, {});
+  const { state, pending, formProps } = useServerForm(saveCategoryAction);
   const ref = useResetOnSuccess(category ? {} : state);
   const p = category ? `cat-${category.id}` : "cat-new";
   return (
-    <form ref={ref} action={action} className="flex flex-col gap-3">
+    <form ref={ref} {...formProps} className="flex flex-col gap-3">
       {category ? <input type="hidden" name="id" value={category.id} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="field">
@@ -61,7 +60,7 @@ export function CategoryForm({ category, parents }: { category?: Cat; parents: {
       </div>
       <FormMessage state={state} />
       <div>
-        <SubmitButton className={category ? "btn-secondary" : "btn-primary"}>{category ? "Save" : "Add category"}</SubmitButton>
+        <SubmitButton pending={pending} className={category ? "btn-secondary" : "btn-primary"}>{category ? "Save" : "Add category"}</SubmitButton>
       </div>
     </form>
   );

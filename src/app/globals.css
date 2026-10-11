@@ -7,6 +7,7 @@
   --surface: #ffffff;
   --surface-2: #f1f3f6;
   --border: #e3e6eb;
+  --field-border: #8a93a3;
   --text: #121620;
   --muted: #5b6474;
   --accent: #0f766e;
@@ -29,6 +30,7 @@
     --surface: #141922;
     --surface-2: #1b212c;
     --border: #273040;
+    --field-border: #6b7688;
     --text: #e8ecf2;
     --muted: #97a1b3;
     --accent: #2dd4bf;
@@ -114,7 +116,7 @@ body {
   @apply text-xs text-muted;
 }
 @utility input {
-  @apply min-h-11 w-full rounded-xl border border-border bg-surface px-3 text-base text-text placeholder:text-muted/70 focus:border-accent focus:ring-4 focus:ring-(--ring) focus:outline-none sm:text-sm;
+  @apply min-h-11 w-full rounded-xl border border-(--field-border) bg-surface px-3 text-base text-text placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-(--ring) focus:outline-none sm:text-sm;
 }
 @utility badge {
   @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap;
@@ -135,6 +137,14 @@ body {
   }
   & tr:last-child td {
     @apply border-b-0;
+  }
+}
+
+/* Fingers need 44px: small buttons grow on touch screens. */
+@media (pointer: coarse) {
+  .btn-sm {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
   }
 }
 

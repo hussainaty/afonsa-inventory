@@ -1,13 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
 import {
   createLocationAction,
   createWarehouseAction,
   renameLocationAction,
-  type ActionState,
 } from "@/app/actions";
-import { FormMessage, SubmitButton, useResetOnSuccess } from "../ui";
+import { FormMessage, SubmitButton, useResetOnSuccess, useServerForm } from "../ui";
 
 export function NewLocationForm({
   parents,
@@ -16,10 +14,10 @@ export function NewLocationForm({
   parents: { id: string; fullName: string }[];
   defaultParentId?: string;
 }) {
-  const [state, action] = useActionState<ActionState, FormData>(createLocationAction, {});
+  const { state, pending, formProps } = useServerForm(createLocationAction);
   const ref = useResetOnSuccess(state);
   return (
-    <form ref={ref} action={action} className="flex flex-col gap-3">
+    <form ref={ref} {...formProps} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <div className="field">
           <label htmlFor="loc-parent" className="label">Inside</label>
@@ -35,7 +33,7 @@ export function NewLocationForm({
           <label htmlFor="loc-name" className="label">Section name</label>
           <input id="loc-name" name="name" required maxLength={60} placeholder="e.g. Shelf A, Aisle 3, Bin 12" className="input" />
         </div>
-        <SubmitButton>Add section</SubmitButton>
+        <SubmitButton pending={pending}>Add section</SubmitButton>
       </div>
       <FormMessage state={state} />
     </form>
@@ -43,10 +41,10 @@ export function NewLocationForm({
 }
 
 export function NewWarehouseForm() {
-  const [state, action] = useActionState<ActionState, FormData>(createWarehouseAction, {});
+  const { state, pending, formProps } = useServerForm(createWarehouseAction);
   const ref = useResetOnSuccess(state);
   return (
-    <form ref={ref} action={action} className="flex flex-col gap-3">
+    <form ref={ref} {...formProps} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
         <div className="field">
           <label htmlFor="wh-name" className="label">Warehouse / site name</label>
@@ -63,21 +61,21 @@ export function NewWarehouseForm() {
       </div>
       <FormMessage state={state} />
       <div>
-        <SubmitButton className="btn-secondary">Add warehouse</SubmitButton>
+        <SubmitButton pending={pending} className="btn-secondary">Add warehouse</SubmitButton>
       </div>
     </form>
   );
 }
 
 export function RenameLocationForm({ id, name }: { id: string; name: string }) {
-  const [state, action] = useActionState<ActionState, FormData>(renameLocationAction, {});
+  const { state, pending, formProps } = useServerForm(renameLocationAction);
   return (
-    <form action={action} className="flex flex-col gap-2">
+    <form {...formProps} className="flex flex-col gap-2">
       <input type="hidden" name="id" value={id} />
       <div className="flex gap-2">
         <label htmlFor={`rename-${id}`} className="sr-only">New name</label>
         <input id={`rename-${id}`} name="name" defaultValue={name} required maxLength={60} className="input" />
-        <SubmitButton className="btn-secondary">Rename</SubmitButton>
+        <SubmitButton pending={pending} className="btn-secondary">Rename</SubmitButton>
       </div>
       <FormMessage state={state} />
     </form>

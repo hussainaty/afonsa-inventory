@@ -244,8 +244,9 @@ export async function createOperationAction(_: ActionState, form: FormData): Pro
       throw new AppError("Invalid product lines");
     }
     const input = operationInput.parse({ ...raw, lines });
-    const op = await stock.createOperation(db, ctx.org.id, ctx.user.id, input);
-    if (raw.validateNow === "true") await stock.validateOperation(db, ctx.org.id, ctx.user.id, op.id);
+    const op = await stock.createOperation(db, ctx.org.id, ctx.user.id, input, {
+      validateNow: raw.validateNow === "true",
+    });
     opId = op.id;
     refreshApp();
   });

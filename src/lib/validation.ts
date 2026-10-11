@@ -13,6 +13,9 @@ const requiredText = (label: string, max: number) =>
   z.string({ error: `${label} is required` }).trim().min(1, `${label} is required`).max(max);
 
 /** Positive quantity with up to 4 decimals (e.g. 2.5 kg). */
+/** An empty form field must fail validation, not silently become 0. */
+const emptyToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
+
 export const quantity = z.coerce
   .number({ error: "Enter a number" })
   .finite("Enter a number")
@@ -20,7 +23,12 @@ export const quantity = z.coerce
   .max(1_000_000_000, "Amount is too large")
   .refine((n) => Math.abs(n * 10_000 - Math.round(n * 10_000)) < 1e-6, "Use at most 4 decimals");
 
-const nonNegativeQty = z.coerce.number().finite().min(0, "Cannot be negative").max(1_000_000_000);
+const nonNegativeNumber = z.coerce
+  .number({ error: "Enter a number" })
+  .finite("Enter a number")
+  .min(0, "Cannot be negative")
+  .max(1_000_000_000);
+const nonNegativeQty = z.preprocess(emptyToUndefined, nonNegativeNumber);
 
 const money = z
   .string()
@@ -30,7 +38,7 @@ const money = z
   .transform((v, ctx) => {
     if (!v) return null;
     const n = Number(v);
-    if (!Number.isFinite(n) || n < 0 || n > 100_000_000) {
+    if (!Number.isFinite(n) || n < 0 || n > 21_000_000) {
       ctx.addIssue({ code: "custom", message: "Enter a valid price" });
       return z.NEVER;
     }
@@ -64,7 +72,7 @@ export type ProductInput = z.infer<typeof productInput>;
 
 /** Product creation can also record the opening stock in a location. */
 export const newProductInput = productInput.extend({
-  initialQuantity: nonNegativeQty.default(0),
+  initialQuantity: z.preprocess(emptyToUndefined, nonNegativeNumber.default(0)),
   initialLocationId: optionalText(64),
   // Set when adding another size to an existing item.
   familyId: optionalText(64),

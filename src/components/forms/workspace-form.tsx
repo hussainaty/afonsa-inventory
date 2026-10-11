@@ -1,13 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
-import { createWorkspaceAction, type ActionState } from "@/app/actions";
-import { FormMessage, SubmitButton } from "../ui";
+import { createWorkspaceAction } from "@/app/actions";
+import { FormMessage, SubmitButton, useServerForm } from "../ui";
 
 export function WorkspaceForm() {
-  const [state, action] = useActionState<ActionState, FormData>(createWorkspaceAction, {});
+  const { state, pending, formProps } = useServerForm(createWorkspaceAction);
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form {...formProps} className="flex flex-col gap-4">
       <div className="field">
         <label htmlFor="ws-name" className="label">
           Workspace name
@@ -24,7 +23,7 @@ export function WorkspaceForm() {
         <p className="hint">Usually your business or team name. A “Main Warehouse” is created for you.</p>
       </div>
       <FormMessage state={state} />
-      <SubmitButton pendingText="Creating…">Create workspace</SubmitButton>
+      <SubmitButton pending={pending} pendingText="Creating…">Create workspace</SubmitButton>
     </form>
   );
 }

@@ -149,7 +149,10 @@ describe("stock engine", () => {
   });
 
   it("archived products cannot be moved", async () => {
-    const [p] = await listProducts(db, ORG_A, { q: "Rope" });
+    const p = await createProduct(db, ORG_A, USER, {
+      name: "Old part", variant: null, familyId: null, categoryId: null, sku: null, barcode: null, uom: "pcs",
+      cost: null, salePrice: null, description: null, initialQuantity: 0, initialLocationId: null,
+    });
     await setProductActive(db, ORG_A, p.id, false);
     await expect(
       adjustStock(db, ORG_A, USER, {

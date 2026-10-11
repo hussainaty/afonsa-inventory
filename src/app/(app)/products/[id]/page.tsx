@@ -121,6 +121,13 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
           />
         ) : null}
 
+        {!product.active ? (
+          <p role="status" className="rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning">
+            {hasSizes ? `Size ${sizeName} is archived` : "This item is archived"}: it holds no stock and can’t be moved.
+            {manager ? " Restore it below to use it again." : " Ask an owner or admin to restore it."}
+          </p>
+        ) : null}
+
         <ProductPhotos
           productId={product.id}
           productName={hasSizes ? `${product.name} ${sizeName}` : product.name}
@@ -182,7 +189,9 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
             <div>
               <h2 id="danger-heading" className="section-title">Archive or delete</h2>
               <p className="text-sm text-muted">
-                Archiving hides the product but keeps its history. Only products that have never moved can be deleted.
+                {hasSizes ? `This applies to the size ${sizeName} only, not the whole item. ` : ""}
+                Archiving hides it but keeps its history; it must have no stock left. Only {hasSizes ? "sizes" : "items"} that
+                have never moved can be deleted.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -193,12 +202,13 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
               >
                 {product.active ? <Archive className="size-4" aria-hidden /> : <ArchiveRestore className="size-4" aria-hidden />}
                 {product.active ? "Archive" : "Restore"}
+                {hasSizes ? ` size ${sizeName}` : ""}
               </ActionButton>
               <ActionButton
                 action={deleteProductAction}
                 fields={{ id: product.id }}
                 className="btn-danger"
-                confirm={`Delete “${product.name}” permanently?`}
+                confirm={`Delete “${hasSizes ? `${product.name} · ${sizeName}` : product.name}” permanently?`}
               >
                 <Trash2 className="size-4" aria-hidden /> Delete
               </ActionButton>

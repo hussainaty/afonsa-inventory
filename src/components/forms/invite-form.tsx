@@ -1,9 +1,9 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { useActionState, useState } from "react";
-import { inviteMemberAction, type ActionState } from "@/app/actions";
-import { FormMessage, SubmitButton } from "../ui";
+import { useState } from "react";
+import { inviteMemberAction } from "@/app/actions";
+import { FormMessage, SubmitButton, useServerForm } from "../ui";
 
 export function CopyLink({ link }: { link: string }) {
   const [copied, setCopied] = useState(false);
@@ -30,9 +30,9 @@ export function CopyLink({ link }: { link: string }) {
 }
 
 export function InviteForm() {
-  const [state, action] = useActionState<ActionState, FormData>(inviteMemberAction, {});
+  const { state, pending, formProps } = useServerForm(inviteMemberAction);
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form {...formProps} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end">
         <div className="field">
           <label htmlFor="inv-email" className="label">Email</label>
@@ -45,7 +45,7 @@ export function InviteForm() {
             <option value="admin">Admin</option>
           </select>
         </div>
-        <SubmitButton>Create invite</SubmitButton>
+        <SubmitButton pending={pending}>Create invite</SubmitButton>
       </div>
       <FormMessage state={state} />
       {state.data?.link ? (
